@@ -25,6 +25,7 @@ import yaml
 from src.attack.predict import run as predict_run
 from src.data.ascad import load as ascad_load
 from src.data.preprocess import MinMaxScaler, Standardizer
+from src.data.resync import resync, resync_iterative
 from src.data.split import load as load_split
 
 
@@ -45,21 +46,33 @@ def main() -> None:
     data = ascad_load(cfg["data"]["path"])
     split = load_split(str(run_dir / "split_indices.npz"))
 
-    # Re-fit Standardizer (+ MinMaxScaler, if enabled) on A exactly as
-    # 01_train_attacker.py did — both are deterministic (no randomness in
-    # fit()), so this exactly reproduces the training-time preprocessing
-    # without needing to persist it separately.
+    traces_a = data.profiling_traces[split.a]
+    traces_e = data.attack_traces[split.e]
+
+    # Re-derive resync (+ Standardizer / MinMaxScaler, if enabled) from A
+    # exactly as 01_train_attacker.py did — all deterministic given A, so
+    # this exactly reproduces training-time preprocessing without needing to
+    # persist any of it separately.
+    resync_cfg = cfg["preprocess"].get("resync", {})
+    if resync_cfg.get("enabled"):
+        max_shift = resync_cfg.get("max_shift", 50)
+        rounds = resync_cfg.get("rounds", 2)
+        print(f"=== re-resyncing A (max_shift={max_shift}, rounds={rounds}) ===")
+        traces_a, _, reference = resync_iterative(traces_a, max_shift=max_shift, rounds=rounds)
+        print(f"=== resyncing E ({len(split.e)} traces) against A's reference ===")
+        traces_e, _ = resync(traces_e, reference, max_shift=max_shift)
+
     preprocess_method = cfg["preprocess"].get("method", "standardize_per_point")
     if preprocess_method == "none":
         print("=== preprocess.method=none: using raw traces (cast to float32) ===")
-        x_e = data.attack_traces[split.e].astype(np.float32)
+        x_e = traces_e.astype(np.float32)
     elif preprocess_method == "standardize_per_point":
         print("=== re-fitting Standardizer on A ===")
         standardizer = Standardizer()
-        x_a = standardizer.fit_transform(data.profiling_traces[split.a])
+        x_a = standardizer.fit_transform(traces_a)
 
         print(f"=== transforming E ({len(split.e)} traces) ===")
-        x_e = standardizer.transform(data.attack_traces[split.e])
+        x_e = standardizer.transform(traces_e)
 
         if cfg["preprocess"].get("minmax"):
             print("=== re-fitting MinMaxScaler on standardized A ===")

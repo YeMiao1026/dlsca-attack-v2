@@ -4,6 +4,10 @@ preprocess:
   method: standardize_per_point
   fit_on: attacker
   minmax: false  # StandardScaler -> MinMaxScaler([0,1]) chain per Zaid et al.'s reference pipeline; off by default, exp configs opt in
+  resync:
+    enabled: false  # blind cross-correlation realignment for desync databases (CLAUDE.md 附錄 B.30); off by default
+    max_shift: 50   # must be >= the database's desync range (50 for desync50, 100 for desync100)
+    rounds: 2
 
 metrics:
   compute: [ge, sr1, n_tge, n_sr90, pi, percentiles]

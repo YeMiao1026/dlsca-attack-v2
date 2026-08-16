@@ -28,6 +28,7 @@ from src.config import load_config, snapshot
 from src.data.ascad import load as ascad_load
 from src.data.labels import build as build_labels
 from src.data.preprocess import MinMaxScaler, Standardizer
+from src.data.resync import resync, resync_iterative
 from src.data.split import four_way
 from src.data.split import save as save_split
 from src.models.registry import build as build_model
@@ -103,6 +104,16 @@ def main() -> None:
     traces_v = data.profiling_traces[split.v]
     meta_a = data.profiling_meta[split.a]
     meta_v = data.profiling_meta[split.v]
+
+    resync_cfg = cfg["preprocess"].get("resync", {})
+    if resync_cfg.get("enabled"):
+        max_shift = resync_cfg.get("max_shift", 50)
+        rounds = resync_cfg.get("rounds", 2)
+        print(f"=== resyncing A (max_shift={max_shift}, rounds={rounds}) ===")
+        traces_a, shifts_a, reference = resync_iterative(traces_a, max_shift=max_shift, rounds=rounds)
+        print(f"  A shift stats: min={shifts_a.min()} max={shifts_a.max()} std={shifts_a.std():.2f}")
+        print("=== resyncing V against A's reference ===")
+        traces_v, _ = resync(traces_v, reference, max_shift=max_shift)
 
     preprocess_method = cfg["preprocess"].get("method", "standardize_per_point")
     if preprocess_method == "none":
