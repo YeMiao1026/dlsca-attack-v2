@@ -1,0 +1,18 @@
+# CLAUDE.md §6.1-6.2: 3 個殘差區塊 + GAP，約 30K 參數，Stage B transferability
+# 攻擊者（架構跟 cnn_light 不同，用來測試模型架構錯配時的可遷移性）。
+#
+# src/models/resnet.py 目前仍是 stub（raise NotImplementedError），這份
+# config 先寫好骨架；真正能跑要等該模型實作完成。
+model:
+  name: resnet
+
+train:
+  optimizer: adam
+  lr: 1.0e-3
+  batch_size: 128
+  epochs: 100
+  selection:
+    metric: n_tge
+    eval_every: 5
+    n_runs_val: 20
+    patience: 6

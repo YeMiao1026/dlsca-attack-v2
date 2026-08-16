@@ -1,0 +1,30 @@
+# CLAUDE.md §8.2: E07 = resnet 對照（Stage B transferability，測試架構
+# 錯配時的可遷移性，約30K參數）。
+#
+# NOTE: src/models/resnet.py 目前仍是 stub，這份 config 現在跑會在
+# 模型建構那一步就 raise NotImplementedError。
+exp_id: E07_resnet
+description: resnet（3個殘差區塊+GAP）對照組，desync0
+
+seed: 42
+
+data: ascad_desync0
+model: resnet
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234

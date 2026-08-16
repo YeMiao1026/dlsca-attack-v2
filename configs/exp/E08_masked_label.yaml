@@ -1,0 +1,33 @@
+# CLAUDE.md §8.2: E08 = 遮罩已知標籤（評估者視角上界）。leakage.model=ID_MASKED
+# 用 Z' = Sbox[p⊕k] ⊕ masks[mask_index]，mask_index=0 是 00_inspect_data.py
+# 在 ASCAD.h5（desync0）上實測找到的欄位（masked-label SNR peak 6.30 @ point
+# 517，見 configs/data/ascad_desync0.yaml 跟附錄 B.6）。
+#
+# 這份跟 E01 唯一差異是 leakage.model，其餘管線（labels.build 支援
+# ID_MASKED、scores.build 一樣是 256 類）都已經實作完成，應該可以直接跑。
+exp_id: E08_masked_label
+description: 遮罩已知標籤（評估者視角上界），desync0
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID_MASKED
+  n_classes: 256
+  mask_index: 0
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234

@@ -1,0 +1,27 @@
+# CLAUDE.md §8.2: E04 = desync100，其餘設定與 E01 clean baseline 相同（唯一
+# 差異是資料集），比 E03 更嚴苛的時間抖動情境。
+exp_id: E04_desync100
+description: desync100 資料庫，其餘與 E01 相同
+
+seed: 42
+
+data: ascad_desync100
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234

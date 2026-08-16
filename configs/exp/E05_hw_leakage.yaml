@@ -1,0 +1,32 @@
+# CLAUDE.md §8.2: E05 = HW 洩漏模型（對照組，9類，類別不平衡需注意，見陷阱
+# 清單 #9——必要時加 class weight）。其餘設定與 E01 相同。
+#
+# NOTE: 訓練（01_train_attacker.py）可以跑，但評估階段（03_evaluate.py）
+# 目前會在 src/attack/scores.py::build 丟出明確的 NotImplementedError——
+# 那支函式寫死假設是 256 類（ID/ID_MASKED），還沒做「先把 Sbox 輸出映射到
+# Hamming weight 再索引 9 類機率」這一步，是真的功能缺口，不是骨架而已。
+exp_id: E05_hw_leakage
+description: HW（Hamming Weight）洩漏模型對照組，desync0
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: HW
+  n_classes: 9
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234

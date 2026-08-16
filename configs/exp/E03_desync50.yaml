@@ -1,0 +1,27 @@
+# CLAUDE.md §8.2: E03 = desync50，其餘設定與 E01 clean baseline 相同（唯一
+# 差異是資料集），拿來看訓練方法論在有時間抖動時是否還有效。
+exp_id: E03_desync50
+description: desync50 資料庫，其餘與 E01 相同
+
+seed: 42
+
+data: ascad_desync50
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234

@@ -1,0 +1,13 @@
+# See CLAUDE.md 附錄 B.6: 00_inspect_data.py 的逐點 SNR 自動偵測在 desync 資料上會
+# FAIL（抖動把洩漏峰值稀釋到雜訊層級，16 個候選 mask 欄位分不開）。務必用
+# `--mask-index 0`（沿用 desync0 上找到的值）明確指定，不要在這份資料上重新自動偵測。
+data:
+  path: data/ASCAD_desync100.h5
+  target_byte: 2
+  trace_len: 700
+
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42

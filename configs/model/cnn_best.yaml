@@ -1,0 +1,20 @@
+# CLAUDE.md §6.1-6.2: ASCAD 原論文之 VGG 風格 CNN_best，66,652,544 參數
+# （5x Conv(k11) + 3x FC，非「Desync 系列」——那是期中報告的命名錯誤，見 §6.1）。
+#
+# src/models/cnn_best.py 目前仍是 stub（raise NotImplementedError），這份
+# config 先寫好骨架；真正能跑要等該模型實作完成。
+#
+# 陷阱清單 #10：必須用 RMSprop lr=1e-5（原論文設定），改 Adam 1e-3 會發散。
+model:
+  name: cnn_best
+
+train:
+  optimizer: rmsprop
+  lr: 1.0e-5
+  batch_size: 200
+  epochs: 75
+  selection:
+    metric: n_tge
+    eval_every: 5
+    n_runs_val: 20
+    patience: 6

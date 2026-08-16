@@ -1,0 +1,29 @@
+# CLAUDE.md §8.2: E06 = cnn_best 對照（深層對照，66.6M 參數，VGG風格）。
+#
+# NOTE: src/models/cnn_best.py 目前仍是 stub，這份 config 現在跑會在
+# 模型建構那一步就 raise NotImplementedError。
+exp_id: E06_cnn_best
+description: cnn_best（ASCAD 原論文 VGG 風格，66.6M參數）對照組，desync0
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_best
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234

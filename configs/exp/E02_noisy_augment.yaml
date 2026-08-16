@@ -1,0 +1,30 @@
+# CLAUDE.md §8.2: E02 = 噪訊增強訓練。
+#
+# NOTE: src/train/trainer.py::fit 目前對 augment.gaussian.enabled=true 會直接
+# raise NotImplementedError（動態每 epoch 增強的訓練迴圈故意還沒接，見附錄
+# B.5）。這份 config 先寫好骨架，真正能跑要等那段訓練迴圈實作完成。
+exp_id: E02_noisy_augment
+description: 訓練時動態高斯噪訊增強（sigma_ratio=0.5），與 E01 clean baseline 對照
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: true
+    sigma_ratio: 0.5   # 相對於 trace 標準差的倍數，不是絕對數值（§6.4）
+
+attack:
+  eval_set: E
+  max_traces: 1000
+  n_runs: 100
+  seed: 1234
