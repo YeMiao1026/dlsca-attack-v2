@@ -1,0 +1,16 @@
+# Reproduction test — matches train_with_pure/train_cnnd.py exactly (see
+# CLAUDE.md 附錄 B.11): flat Adam lr=1e-3, batch=50, epochs=50, NO LR
+# schedule (no lr_schedule key at all, unlike cnn_light.yaml's one_cycle).
+model:
+  name: cnn_light
+
+train:
+  optimizer: adam
+  lr: 1.0e-3
+  batch_size: 50
+  epochs: 50
+  selection:
+    metric: n_tge
+    eval_every: 5
+    n_runs_val: 20
+    patience: 100  # let all 50 epochs run, same as the original (no early stop/checkpoint selection at all)

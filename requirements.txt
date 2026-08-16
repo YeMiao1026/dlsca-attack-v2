@@ -1,0 +1,8 @@
+numpy
+h5py
+matplotlib
+tensorflow
+keras
+tqdm
+pyyaml
+pytest

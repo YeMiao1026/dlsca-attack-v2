@@ -1,0 +1,39 @@
+# CLAUDE.md §6.1-6.2: 18,642-param model, large k=51 receptive field for
+# desync tolerance, SELU + he_uniform (src/models/cnn_light.py — NOT
+# lecun_normal; the actual historical source train_cnnd.py uses he_uniform,
+# see CLAUDE.md 附錄 B.11-B.12).
+#
+# train.* below is the result of a full investigation (CLAUDE.md 附錄
+# B.7-B.16): flat LR plateaued at GE~30-40 regardless of epoch count; adding
+# One-Cycle LR + MinMaxScaler was the first real breakthrough; he_uniform
+# init then cut N_TGE 9.2x (6408->695); a corrected scale_percentage sweep
+# (keeping peak LR fixed) found a further 32% improvement (695->475). See
+# CLAUDE.md 附錄 B.16 for the full timeline and final numbers.
+model:
+  name: cnn_light
+
+train:
+  optimizer: adam
+  # NOTE: OneCycleLR's actual peak LR = lr * 100 * scale_percentage^2, not `lr`
+  # itself (see src/train/lr_schedule.py) — it only equals `lr` when
+  # scale_percentage=0.1 (100*0.1^2=1), which is why earlier scale_percentage
+  # sweeps at the old lr=5.0e-3 were confounded (see CLAUDE.md 附錄 B.15).
+  # lr=0.02 + scale_percentage=0.05 keeps peak LR fixed at 5e-3 (0.02*100*0.05^2=5e-3)
+  # while narrowing the up/down swing (start/end LR closer to peak) — this
+  # combination beat every other tested point: N_TGE=475 vs 695 @ scale=0.1.
+  lr: 0.02
+  batch_size: 50
+  epochs: 50          # tried stretching to 150 — best GE got WORSE (71.35 @ep115 preview vs 17.15 @ep40 for the 50-epoch run; formal eval GE@N=5000=49.93, much worse than 50-epoch's GE@N=1000=14.89). 50 matches the reference's own epoch count for a reason: it's tuned together with the one-cycle schedule length, not an arbitrary budget to be raised. Reverted.
+  lr_schedule: one_cycle
+  one_cycle:
+    end_percentage: 0.2
+    scale_percentage: 0.05
+  selection:
+    metric: n_tge
+    eval_every: 5
+    n_runs_val: 20
+    # one-cycle needs to run its full prescribed schedule — stopping mid-cycle
+    # cuts off the low-LR annealing phase that the policy depends on for its
+    # final convergence, so patience is set well beyond the epoch budget
+    # above rather than left at a value meant for flat-LR runs.
+    patience: 100

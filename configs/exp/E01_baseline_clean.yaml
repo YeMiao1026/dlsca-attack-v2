@@ -1,0 +1,25 @@
+exp_id: E01_baseline_clean
+description: 無防禦、輕量 CNN、desync0 的攻擊基準
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_light
+
+preprocess:
+  minmax: true  # StandardScaler -> MinMaxScaler([0,1]), matching the reference pipeline (see cnn_light.yaml)
+
+leakage:
+  model: ID              # ID | HW | ID_MASKED
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 5000  # GE was still declining at N=1000 in the one-cycle run, not plateaued — widened the window to see if it actually crosses GE=1
+  n_runs: 100
+  seed: 1234

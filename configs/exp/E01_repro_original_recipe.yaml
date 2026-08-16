@@ -1,0 +1,37 @@
+# Diagnostic/investigative variant, NOT part of the official E01-E08 matrix
+# (CLAUDE.md §8.2). Tests whether train_cnnd.py's exact historical recipe
+# (no normalization, he_uniform init, flat LR, batch=50/epochs=50, almost
+# all profiling data) reproduces its claimed N_TGE≈80-100 when evaluated
+# HONESTLY with our rigorous 100-independent-run-averaged GE/N_TGE, instead
+# of their original single non-shuffled pass. See CLAUDE.md 附錄 B.11.
+exp_id: E01_repro_original_recipe
+description: 重現 train_cnnd.py 原始配方（無正規化、he_uniform、flat LR、幾乎全量訓練），用嚴謹100次評估法檢驗
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_light_flat_repro
+
+preprocess:
+  method: none  # no standardization, no minmax — raw traces cast to float32, matching train_cnnd.py
+
+split:
+  n_attacker: 44000  # train_cnnd.py used all 50000 profiling traces; we hold out 5000 for a proper GE-based V (sound, doesn't disadvantage this recipe — the original never used its "validation" for checkpoint selection anyway)
+  n_val: 5000
+  n_defender: 1000   # CLAUDE.md §5.2 stage 1: D must always be reserved even when unused this run, for fairness in future defender experiments
+  seed: 42
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

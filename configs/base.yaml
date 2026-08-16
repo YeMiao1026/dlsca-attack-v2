@@ -1,0 +1,10 @@
+seed: 42
+
+preprocess:
+  method: standardize_per_point
+  fit_on: attacker
+  minmax: false  # StandardScaler -> MinMaxScaler([0,1]) chain per Zaid et al.'s reference pipeline; off by default, exp configs opt in
+
+metrics:
+  compute: [ge, sr1, n_tge, n_sr90, pi, percentiles]
+  leakage_assessment: [snr, nicv, t_test]

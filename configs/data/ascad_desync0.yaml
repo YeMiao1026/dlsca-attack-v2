@@ -1,0 +1,13 @@
+# See CLAUDE.md §5.2 stage 0: mask index 0 confirmed via scripts/00_inspect_data.py
+# on this database (masked-label SNR peak 6.30 @ point 517 vs. unmasked-label
+# control 0.0105 — clean separation, safe to auto-detect on desync0 directly).
+data:
+  path: data/ASCAD.h5
+  target_byte: 2
+  trace_len: 700
+
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42
