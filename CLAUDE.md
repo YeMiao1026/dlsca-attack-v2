@@ -1688,3 +1688,15 @@ Phase 4（epoch數，其餘沿用Phase1-3贏家）：
 | 0.35 | 93.79 | -0.0892 |
 
 **三點都很接近，`end_percentage=0.2` 確認維持最佳但差距不大**，這個維度沒有像desync100那樣有明顯影響。進入 Phase 3（scale_percentage，峰值固定1e-3）。
+
+### B.53 Phase 3（scale_percentage掃描）：0.1確認局部最優，進入最後的Phase 4（epoch數）
+
+峰值固定1e-3：
+
+| scale_percentage | GE@1000 |
+|---|---|
+| 0.05 | 104.88 |
+| **0.1（贏家，預設）** | **91.70** |
+| 0.2 | 106.58 |
+
+**兩側都更差，`scale_percentage=0.1` 確認是局部最優**——三個維度（max_lr、end_percentage、scale_percentage）現在全部摸到邊界。目前最佳配方維持 `max_lr=1e-3, end_percentage=0.2, scale_percentage=0.1`（GE@1000=91.70, GE@9000=19.20, GE@10000=13.00）。正在測試最後一個維度 `epochs`（30跟75，對照預設50）。
