@@ -1,6 +1,6 @@
 # `runs/` 索引
 
-`runs/` 目錄本身被 `.gitignore` 排除（訓練產物不進版控），這份索引移到 `docs/` 底下所以會進版控，作為導覽用，不是正式產物本身。每個子目錄的完整細節、調查脈絡見 `CLAUDE.md` 附錄 B.7–B.17；這裡只列重點方便快速定位。
+`runs/` 目錄本身被 `.gitignore` 排除（訓練產物不進版控），這份索引移到 `docs/` 底下所以會進版控，作為導覽用，不是正式產物本身。每個子目錄的完整細節、調查脈絡見 `CLAUDE.md` 附錄 B.7–B.19；這裡只列重點方便快速定位。
 
 ## E01 系列（cnn_light、desync0、ID leakage、無 augmentation 的不同訓練配方）
 
@@ -36,8 +36,9 @@
 | `E03_desync50_20260816_1359` | desync50，**改用遮罩已知標籤**（`--override leakage.model=ID_MASKED leakage.mask_index=0`，其餘同上） | None | 157.14（一樣比隨機更差） | **鑑別診斷用**：連 E08 那種「全專案最好學」的目標放到 desync50 上都學不到，排除「ID 目標天生難」的解釋，確認是 desync 抖動讓現有 one-cycle 配方失效，見 CLAUDE.md 附錄 B.18 |
 | `E04_desync100_20260816_1343` | desync100 | None | 168.39 | 同樣負面，抖動更大更沒學到 |
 | `E08_masked_label_20260816_1349` | 遮罩已知標籤，desync0 | **3** | 0.0 | **本專案所有實驗裡最快收斂**。初次評估異常（GE不收斂但loss明顯在降）追出 `scores.build` 沒處理mask的真bug，修正後才是這個數字，見 CLAUDE.md 附錄 B.17 |
+| `E05_hw_leakage_20260816_1415` | HW 洩漏模型，desync0（9類） | **1361**（評估窗口拉到3000） | 0.0 @3000 | **第二快收斂**，比 E01 的 ID 目標（N_TGE=475）快3倍以上，符合 SCA 文獻對 HW 模型的一般認知。B.19 修完 `scores.build`/`GEModelSelection` 的 HW 支援後跑出來的正式結果 |
 
-E03/E04 的負面結果經 B.18 鑑別診斷後，確認根因是「desync0 調出來的 one-cycle 超參數不適用於 desync 情境」，不是資料或管線問題，也不是 ID 目標本身難學。要解決大機率需要對 desync50/100 各自重新走一輪跟 B.7-B.15 同等規模的調查，尚未投入。E06（cnn_best）、E07（resnet）等模型實作完成才能跑；E02（噪訊增強）等訓練迴圈接上動態增強才能跑；E05（HW）的 config 有了，但 `scores.build` 目前只支援 256 類（ID/ID_MASKED），HW 的 9 類還需要額外實作才能評估。
+E03/E04 的負面結果經 B.18 鑑別診斷後，確認根因是「desync0 調出來的 one-cycle 超參數不適用於 desync 情境」，不是資料或管線問題，也不是 ID 目標本身難學。要解決大機率需要對 desync50/100 各自重新走一輪跟 B.7-B.15 同等規模的調查，尚未投入。E06（cnn_best）、E07（resnet）等模型實作完成才能跑；E02（噪訊增強）等訓練迴圈接上動態增強才能跑。
 
 ## 命名說明
 

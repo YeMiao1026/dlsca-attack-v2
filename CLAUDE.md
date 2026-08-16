@@ -971,4 +971,15 @@ PI          = -0.0237  （幾乎零資訊，訓練期GE預覽全程在123-182之
 1. **E08 訓練當時印出來的所有 GE 預覽數字，其實從頭到尾都是用錯誤（未遮罩）的方式算的**——雖然事後 `03_evaluate.py` 用對的方法重新評估救回了正確的 N_TGE=3，但訓練期間的 checkpoint 選擇本身是憑錯誤的指標做的，只是這個任務太簡單、隨便一個 checkpoint 都夠好，才沒被看出來。
 2. **E05（HW）光是訓練都會直接崩潰**——`GEModelSelection` 用 `ID`（256欄）去索引只有 9 欄的 `probs`，撞上剛加的範圍檢查，`ValueError` 直接把訓練中斷。
 
-**已修正**：`GEModelSelection.__init__` 新增 `leakage_model`、`mask` 參數並傳給內部的 `scores.build`；`src/train/trainer.py::fit` 從 `cfg["leakage"]` 算出這兩個值餵給 callback（跟 `scripts/03_evaluate.py` 算法一致）。用縮小規模的 E05 跑過一次確認：訓練不再崩潰、`GEModelSelection` 的 GE 預覽正確反映 HW 評分、`02_run_attack.py`／`03_evaluate.py` 正確吃到 `probs.shape=(N,9)` 全程無誤。E05 目前還沒跑正式全量結果（這次是縮小規模的煙霧測試，不代表真實效能）。
+**已修正**：`GEModelSelection.__init__` 新增 `leakage_model`、`mask` 參數並傳給內部的 `scores.build`；`src/train/trainer.py::fit` 從 `cfg["leakage"]` 算出這兩個值餵給 callback（跟 `scripts/03_evaluate.py` 算法一致）。用縮小規模的 E05 跑過一次確認：訓練不再崩潰、`GEModelSelection` 的 GE 預覽正確反映 HW 評分、`02_run_attack.py`／`03_evaluate.py` 正確吃到 `probs.shape=(N,9)` 全程無誤。
+
+**E05 正式全量結果（`runs/E05_hw_leakage_20260816_1415/`，沿用 E01 已驗證的 one-cycle+MinMax+he_uniform 配方，desync0，A=30000/V=5000）**：
+
+```
+N_TGE  = 1361
+N_SR90 = 1819
+GE @ N=3000 = 0.0000
+SR1 @ N=3000 = 1.0000
+```
+
+**表現比預期好很多**——訓練期預覽 GE 早在 epoch 25 就掉到 0.90（1000條窗口內就快收斂），正式評估拉寬到 3000 條窗口後完全收斂，GE 曲線（`runs/E05_hw_leakage_20260816_1415/figures/ge_curve.png`）平滑降到 0，是目前全部實驗裡收斂第二快的（僅次於 E08 的 N_TGE=3），比 E01 的 ID 目標（N_TGE=475）快 3 倍以上。這符合 SCA 文獻對 HW 模型的一般認知：雖然只有 9 類、資訊量理論上限較低（log2(9)≈3.17 bits vs ID 的 8 bits），但類別邊界通常對應更穩定的功耗特徵（漢明重量直接關聯翻轉位元數），在很多實務情境下比 256 類的 ID 更好學。
