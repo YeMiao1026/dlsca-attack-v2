@@ -1,8 +1,8 @@
-numpy
-h5py
-matplotlib
-tensorflow
-keras
-tqdm
-pyyaml
-pytest
+numpy==2.5.2
+h5py==3.14.0
+matplotlib==3.11.1
+tensorflow==2.21.0
+keras==3.15.1
+tqdm==4.70.0
+pyyaml==6.0.3
+pytest==9.1.1
