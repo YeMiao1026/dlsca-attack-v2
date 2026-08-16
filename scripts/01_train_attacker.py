@@ -79,7 +79,10 @@ def main() -> None:
     cfg = load_config(args.config, overrides=args.override)
     set_global_seed(cfg["seed"])
 
-    run_dir = Path(args.runs_dir) / f"{cfg['exp_id']}_{datetime.now():%Y%m%d_%H%M}"
+    # second-precision timestamp: minute-only precision let two runs launched
+    # in the same minute collide on the same run_dir and race on model.keras
+    # (see CLAUDE.md 附錄 B.35)
+    run_dir = Path(args.runs_dir) / f"{cfg['exp_id']}_{datetime.now():%Y%m%d_%H%M%S}"
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"=== run dir: {run_dir} ===")
 
