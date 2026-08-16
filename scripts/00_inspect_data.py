@@ -19,7 +19,7 @@ import numpy as np
 
 from src.data.ascad import AES_SBOX, get_correct_key, load
 from src.data.split import four_way
-from src.metrics.leakage import snr
+from src.metrics.leakage import nicv, snr
 
 SNR_SIGNIFICANCE_RATIO = 10.0  # masked-label SNR peak must exceed this multiple of the unmasked control
 
@@ -116,6 +116,16 @@ def main() -> None:
     print(f"  masked-label   SNR peak: {peak_masked:.4f} at point {poi_masked}")
     print(f"  unmasked-label SNR peak: {peak_unmasked:.4f} at point {poi_unmasked}  (control, should be ~0)")
     print(f"  points >= 50% of masked-label peak: {concentrated} / {a_traces.shape[1]} (should be a handful, not spread out)")
+
+    # NICV is SNR's bounded ([0,1]) cousin (same inter-class-mean numerator,
+    # normalized by total variance instead of mean within-class variance) —
+    # printed alongside SNR as a second, differently-scaled cross-check, not
+    # a replacement for the pass/fail decision below (that stays SNR-based
+    # to keep the historical SNR_SIGNIFICANCE_RATIO threshold meaningful).
+    nicv_masked = nicv(a_traces, masked)
+    nicv_unmasked = nicv(a_traces, unmasked)
+    print(f"  masked-label   NICV peak: {float(nicv_masked.max()):.4f} at point {int(nicv_masked.argmax())}")
+    print(f"  unmasked-label NICV peak: {float(nicv_unmasked.max()):.4f} at point {int(nicv_unmasked.argmax())}  (control, should be ~0)")
 
     print()
     print("=== step 5: desync field distribution ===")
