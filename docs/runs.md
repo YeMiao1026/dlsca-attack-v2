@@ -106,7 +106,11 @@
 | （沿用Phase2贏家） | 0.1 | 1.0e-3 | 84.42 | 10.00 | -0.4213 |
 | `E04_desync100_20260816_201058_scale02` | **0.2** | 2.5e-4 | **69.97** | **7.00** | -0.6678 |
 
-**跟desync0方向相反**（desync0是scale越小越好），desync100目前是越大越好。細節見 CLAUDE.md 附錄 B.40。
+**跟desync0方向相反**（desync0是scale越小越好），desync100目前是越大越好，但 `scale=0.3`（`E04_desync100_20260816_201955_scale03`）反轉變差（GE@1000=87.32），確認 `0.2` 是局部最優。細節見 CLAUDE.md 附錄 B.40-B.41。
+
+## desync100 目前最佳配方（截至此份索引）
+
+`max_lr=1e-3（peak）, end_percentage=0.1, scale_percentage=0.2, train.lr=2.5e-4` + resync（max_shift=100）。**GE@10000=7.00**，非常接近完全收斂但尚未跌破1。跟desync50最佳配方（`lr=0.02, end_percentage=0.2, scale_percentage=0.05`）幾乎每個維度都不同。三個超參數維度（max_lr/end_percentage/scale_percentage）都已找到局部最優，見 CLAUDE.md 附錄 B.41 總結。
 | `E04_desync100_20260816_1343` | desync100 | None | 168.39 | 同樣負面，抖動更大更沒學到 |
 | `E04_desync100_20260816_1738` | 單次確認跑（沿用desync50表現較好的flat LR，非完整掃描——scope說明見B.26） | None | 138.43（比168.39好一些） | 負面，PI=-0.0795仍是負值，同desync50模式再現。細節見 CLAUDE.md 附錄 B.26 |
 | `E08_masked_label_20260816_1349` | 遮罩已知標籤，desync0 | **3** | 0.0 | **本專案所有實驗裡最快收斂**。初次評估異常（GE不收斂但loss明顯在降）追出 `scores.build` 沒處理mask的真bug，修正後才是這個數字，見 CLAUDE.md 附錄 B.17 |
