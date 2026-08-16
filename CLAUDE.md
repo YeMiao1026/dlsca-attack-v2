@@ -1594,3 +1594,15 @@ end_percentage=0.1（配合lr=5e-5）：GE@1000=101.17  GE@9000=51.32（比0.2�
 ```
 
 **`max_lr=5e-5` 確認是局部最優**（1e-5更差、1e-4更差），這個維度探完。**`end_percentage=0.1` 打敗了原本的 `0.2`**——這次跟desync100的結論方向一致（都是0.1優於0.2），但先前用lr=1e-4基礎測`end=0.35`更差時還以為resnet跟desync100方向不同，現在看來只是原本測的end_percentage點不夠多，方向其實部分一致。目前最佳配方：`max_lr=5e-5, end_percentage=0.1`。下一步：以此為基礎掃 `scale_percentage`（峰值固定5e-5）。
+
+### B.48 Phase 3（scale_percentage掃描）確認 0.1 是局部最優，進入 Phase 4（epoch數）
+
+峰值固定5e-5，掃 `scale_percentage`：
+
+| scale_percentage | train.lr | GE@1000 |
+|---|---|---|
+| 0.05 | 2.0e-4 | 106.71 |
+| **0.1（贏家）** | 5.0e-5 | **101.17** |
+| 0.2 | 1.25e-5 | 107.55 |
+
+**兩側都更差，`scale_percentage=0.1`（預設值）確認是局部最優**——三個超參數維度（max_lr、end_percentage、scale_percentage）現在全部摸到邊界，目前最佳配方 `max_lr=5e-5, end_percentage=0.1, scale_percentage=0.1`（GE@1000=101.17, GE@9000=51.32）。正在測試最後一個維度 `epochs`（50 跟 200，對照預設100），比照desync100的四維度掃描順序收尾。
