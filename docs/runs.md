@@ -183,6 +183,19 @@ E03/E04 的負面結果經 B.18 鑑別診斷後，確認根因是「desync0 調�
 | `E07_resnet_20260816_1630` | 精簡掃描#1：+One-Cycle LR，peak維持1e-3 | None | 131.34（比baseline還略差） | 負面，PI=-0.0268。單純加One-Cycle、peak不變幾乎沒差。細節見 B.24 |
 | `E07_resnet_20260816_1652` | 精簡掃描#2：+One-Cycle LR，peak拉高到5e-3（同cnn_light） | None | **174.63（三者中最差）** | 負面，PI=-0.1472（三者中最負）。**訓練期20-run快速預覽一度顯示GE低至87.60（看似有希望，判定為new best存檔），但正式100-run評估推翻——是「少量run預覽被雜訊騙到」陷阱的活生生示範，這次騙到的是GEModelSelection本身**。細節見 B.24 |
 
+## cnn_best（E06）完整調查收尾（task #11）
+
+| 嘗試 | GE@1000 |
+|---|---|
+| flat基準（lr=1e-5） | 157.77 |
+| one-cycle peak=1e-4 | 163.33 |
+| one-cycle peak=1e-3 | 158.68 |
+| one-cycle peak=1e-5 | 152.82 |
+| flat lr=1e-3 | 159.51 |
+| batch_size=50 | 158.91（訓練期預覽116.80看似有希望，正式評估推翻） |
+
+**六個數字全部落在152.82-163.33窄範圍內，統計上無法區分**——LR schedule形狀、峰值大小（4個數量級）、batch size全部試過都無效。判定為66.6M參數對30000條訓練軌跡的優化困難本身，超出超參數調整範疇。task #11 結案（暫停），細節見 CLAUDE.md 附錄 B.43-B.50。
+
 ## 命名說明
 
 - 目錄名格式 `{exp_id}_{timestamp}`，`exp_id` 對應 `configs/exp/*.yaml` 的 `exp_id` 欄位。
