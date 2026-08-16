@@ -51,6 +51,32 @@ def test_correct_key_cumulative_score_beats_random_keys():
     assert np.all(cumulative[correct_key] > cumulative[other_keys])
 
 
+def test_masked_scores_require_the_mask_to_recover_the_key():
+    """Regression test for a real bug: an ID_MASKED model predicts
+    Z' = Sbox[p^k] ^ mask[i] (mask varies per trace), so scoring must XOR the
+    same mask into the hypothesis before indexing probs — an early E08 run
+    trained fine (loss dropped) but never converged because scores.build
+    ignored the mask entirely and scored against the unmasked hypothesis.
+    """
+    rng = np.random.default_rng(4)
+    n, target_byte, correct_key = 300, 2, 77
+    plaintexts = rng.integers(0, 256, (n, 16), dtype=np.uint8)
+    mask = rng.integers(0, 256, n, dtype=np.uint8)
+
+    true_class = AES_SBOX[plaintexts[:, target_byte] ^ np.uint8(correct_key)] ^ mask
+    probs = np.full((n, 256), 0.3 / 255, dtype=np.float64)
+    probs[np.arange(n), true_class] = 0.7
+    probs = probs.astype(np.float32)
+
+    sc_with_mask = build(probs, plaintexts, target_byte, mask=mask)
+    cumulative_with_mask = sc_with_mask.sum(axis=0)
+    assert cumulative_with_mask.argmax() == correct_key
+
+    sc_without_mask = build(probs, plaintexts, target_byte)
+    cumulative_without_mask = sc_without_mask.sum(axis=0)
+    assert cumulative_without_mask.argmax() != correct_key
+
+
 def test_log_summation_does_not_underflow_past_fifty_traces():
     # Pitfall #1: naive probability *multiplication* underflows to exactly 0
     # well before 100 traces. Summing logs must stay informative past that.

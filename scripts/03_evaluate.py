@@ -61,8 +61,12 @@ def main() -> None:
     correct_key = get_correct_key(meta_e, target_byte)
     print(f"  correct key: {correct_key} (0x{correct_key:02x})")
 
+    leakage_model = cfg["leakage"]["model"]
+    mask_index = cfg["leakage"].get("mask_index")
+    mask = meta_e["masks"][:, mask_index].astype(np.uint8) if leakage_model == "ID_MASKED" else None
+
     print("=== building log-likelihood score matrix ===")
-    sc = scores.build(probs, meta_e["plaintext"], target_byte)
+    sc = scores.build(probs, meta_e["plaintext"], target_byte, mask=mask)
 
     attack_cfg = cfg["attack"]
     n_runs = attack_cfg["n_runs"]
@@ -100,8 +104,6 @@ def main() -> None:
         p25, p50, p75 = keyrank.percentiles(ranks, q=(25, 50, 75))
         metrics["percentiles"] = {"p25": p25.tolist(), "p50": p50.tolist(), "p75": p75.tolist()}
     if "pi" in requested:
-        leakage_model = cfg["leakage"]["model"]
-        mask_index = cfg["leakage"].get("mask_index")
         y_e = build_labels(meta_e, leakage_model, target_byte, mask_index=mask_index)
         metrics["pi"] = compute_pi(probs, y_e, cfg["leakage"]["n_classes"])
 

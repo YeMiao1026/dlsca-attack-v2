@@ -1,8 +1,8 @@
 # `runs/` 索引
 
-`runs/` 目錄本身被 `.gitignore` 排除（訓練產物不進版控），這份索引移到 `docs/` 底下所以會進版控，作為導覽用，不是正式產物本身。每個子目錄的完整細節、調查脈絡見 `CLAUDE.md` 附錄 B.7–B.16；這裡只列重點方便快速定位。
+`runs/` 目錄本身被 `.gitignore` 排除（訓練產物不進版控），這份索引移到 `docs/` 底下所以會進版控，作為導覽用，不是正式產物本身。每個子目錄的完整細節、調查脈絡見 `CLAUDE.md` 附錄 B.7–B.17；這裡只列重點方便快速定位。
 
-所有 run 都是 `E01_baseline_clean`（`cnn_light`、desync0、ID leakage、無 augmentation）的不同訓練配方，除了明確標注「診斷用」的那個。
+## E01 系列（cnn_light、desync0、ID leakage、無 augmentation 的不同訓練配方）
 
 | run_dir | 配方 | 評估窗口 | N_TGE | GE@窗口末端 | 備註 |
 |---|---|---|---|---|---|
@@ -27,6 +27,16 @@
 `one-cycle LR (實際峰值LR=5e-3, end_percentage=0.2, scale_percentage=0.05, 對應 train.lr=0.02) + MinMaxScaler + he_uniform + batch=50 + epochs=50`，對應 `configs/model/cnn_light.yaml` + `configs/exp/E01_baseline_clean.yaml` 目前的內容。`N_TGE=475`，離 CLAUDE.md §11 目標（100±30）差 4.75 倍。
 
 **重要提醒**：`OneCycleLR` 的實際峰值 LR = `train.lr × 100 × scale_percentage²`，只有 `scale_percentage=0.1` 時才會化簡成「峰值=train.lr」。單獨改 `scale_percentage` 卻不同步調整 `train.lr` 會意外把峰值也拉走（1248、1255 兩筆就是這樣的混淆實驗，已標註 ⚠️，不能當作乾淨的 scale_percentage 結論）。`end_percentage`（0.1/0.2/0.35）跟「峰值固定情況下的」`max_lr`／`scale_percentage` 都掃過，`end_percentage`、`max_lr` 兩個維度是局部最優（兩側都更差），但 `scale_percentage`（峰值固定後）呈現單調趨勢、還沒摸到反轉邊界，理論上還能繼續往更小的方向試（細節見 CLAUDE.md 附錄 B.13–B.15）。
+
+## E02-E08 首批結果（沿用 E01 已驗證的 cnn_light 配方，A=30000/V=5000, epochs=50）
+
+| run_dir | 實驗 | N_TGE | GE@1000 | 備註 |
+|---|---|---|---|---|
+| `E03_desync50_20260816_1337` | desync50 | None | 152.31（比隨機127.5更差） | 負面，直接沿用 desync0 調出的超參數沒學到東西，還沒為 desync 情境重新調參 |
+| `E04_desync100_20260816_1343` | desync100 | None | 168.39 | 同樣負面，抖動更大更沒學到 |
+| `E08_masked_label_20260816_1349` | 遮罩已知標籤 | **3** | 0.0 | **本專案所有實驗裡最快收斂**。初次評估異常（GE不收斂但loss明顯在降）追出 `scores.build` 沒處理mask的真bug，修正後才是這個數字，見 CLAUDE.md 附錄 B.17 |
+
+E03/E04 的負面結果暫緩深入調查（判斷是超參數沒為 desync 情境調過，不是管線壞了）。E06（cnn_best）、E07（resnet）等模型實作完成才能跑；E02（噪訊增強）等訓練迴圈接上動態增強才能跑；E05（HW）的 config 有了，但 `scores.build` 目前只支援 256 類（ID/ID_MASKED），HW 的 9 類還需要額外實作才能評估。
 
 ## 命名說明
 

@@ -907,3 +907,34 @@ SR1 @ N=9000 = 1.0000
 1. **「N_TGE≈100」這個歷史目標值本身不可靠**：來源是單次、不重排、依原始儲存順序跑過 Attack 集的弱評估法（`train_cnnd.py` 配上原始 `ASCAD_test_models.py::full_ranks()`），拿同一套配方用嚴謹的 100 次獨立重排評估重測，結果是 GE=199.27（等於沒學到東西）。**不應該把「打到 100」當作必達的驗收標準，475 這個數字本身在方法論上比「≈100」更站得住腳**。
 2. **關鍵超參數往往不是理論上「應該」重要的那個**：一路查文獻假設 one-cycle LR 是決定性因素，做了才發現 `he_uniform`（一個違反「SELU該配lecun_normal」教科書原則的選擇）帶來的進步（9.2倍）比 one-cycle 本身還大。
 3. **超參數調整要注意變數間的耦合**：`scale_percentage` 掃描一開始因為沒有同步固定峰值 LR 而得到錯誤結論，這類「表面上只改一個變數，實際上牽動了另一個沒明講的變數」的陷阱，在調參時很容易發生，也是這次調查裡少數需要回頭承認並修正的錯誤。
+
+### B.17 E02-E08 骨架補齊 + 首批正式結果，抓到一個真的評分 bug
+
+補齊 CLAUDE.md §8.2 全部 E02-E08 的 config（`configs/data/ascad_desync{50,100}.yaml`、`configs/model/{cnn_best,resnet}.yaml`、`configs/exp/E0{2-8}_*.yaml`），沿用 E01 已驗證的 cnn_light 配方（one-cycle+MinMax+he_uniform，`lr=0.02, scale_percentage=0.05`）。E06/E07（cnn_best/resnet 還是 stub）、E02（動態增強還沒接）在對應位置乾淨丟出 `NotImplementedError`；E05（HW）在 `scores.build` 丟出明確的 `NotImplementedError`（見下方發現的 bug）。
+
+跑了三個「理論上能跑」的實驗全量版本（A=30000/V=5000，50 epochs）：
+
+| 實驗 | 結果 | 判讀 |
+|---|---|---|
+| E03（desync50） | GE@1000=152.31（比隨機127.5更差），曲線持平甚至微升 | 負面：沿用 desync0 調出的超參數在有時間抖動的資料上完全沒學到東西 |
+| E04（desync100） | GE@1000=168.39 | 同樣負面，抖動更大更沒學到 |
+| E08（遮罩已知標籤） | 初次評估：GE 不收斂、比隨機略差，儘管訓練期 loss 明顯在降 | **異常**：模型顯然學到東西，但攻擊端完全測不出來 |
+
+**E08 的異常追出一個真的 bug**：`src/attack/scores.py::build` 不管什麼 leakage model，永遠只算 `hypothesis(i,k) = Sbox[p⊕k]`（未遮罩），但 `ID_MASKED` 訓練時的標籤其實是 `Z' = Sbox[p⊕k] ⊕ mask[i]`（每條軌跡的 mask 值不同，見 `src/data/labels.py`）。模型正確地學會了預測 `Z'`，但評分階段拿它去對「沒異或 mask 的錯誤假設」，等於考卷寫對了、對答案的人卻用了另一份答案卷——GE 當然不會收斂，即使模型完全正確也一樣。
+
+**已修正**：`scores.build` 新增 `mask` 參數，`hyp = hyp ^ mask[:, None]`；`scripts/03_evaluate.py` 在 `leakage.model == "ID_MASKED"` 時自動帶入對應的 `masks[:, mask_index]`。新增 `tests/test_scores.py::test_masked_scores_require_the_mask_to_recover_the_key` 回歸測試——刻意同時驗證「帶 mask 才能正確抓出金鑰」跟「不帶 mask 抓不出來」兩種情況，避免以後又悄悄退化回這個 bug（`tests/` 現在 24 個測試全過）。
+
+**修正後重新評估 E08**（不用重訓練，同一份 `probs.npy`）：
+
+```
+N_TGE  = 3       （3條軌跡內就穩定收斂，符合「評估者視角上界」的定位）
+N_SR90 = 3
+PI     = 3.3637 bits（滿分8bits，遠高於 E01 系列的 -0.09~-1.19）
+GE @ N=1000 = 0.0000
+SR1 @ N=1000 = 1.0000
+```
+
+GE 曲線（`runs/E08_masked_label_20260816_1349/figures/ge_curve.png`）幾乎垂直下墜到 0，是目前所有實驗裡最乾淨的收斂——完全符合預期：這是本研究定義的最強攻擊者假設（遮罩已知），理應比 E01（遮罩未知）好上好幾個數量級。
+
+**E03/E04 的負面結果目前判斷是「超參數沒調過」，不是管線壞了**：E01 從最初的固定LR卡在GE~30-40，到最後靠 one-cycle+he_uniform+scale_percentage 調到 N_TGE=475，中間經過 B.7-B.15 一整輪調查跟至少 15 次訓練。E03/E04 直接沿用 desync0 調出來的超參數（連 batch/epoch/one-cycle 排程都完全沒為 desync 情境調整過），會學不到東西並不意外——尤其 desync 資料的核心難點正是時間抖動，跟 desync0 調參時要解決的問題完全不同，不能假設同一組超參數直接適用。**這兩個負面結果暫不深入調查，留待之後有心力時再處理，比照 E01 的方法論（先驗證資料/管線、再查訓練方法論）重新來一輪**。
+3. **超參數調整要注意變數間的耦合**：`scale_percentage` 掃描一開始因為沒有同步固定峰值 LR 而得到錯誤結論，這類「表面上只改一個變數，實際上牽動了另一個沒明講的變數」的陷阱，在調參時很容易發生，也是這次調查裡少數需要回頭承認並修正的錯誤。

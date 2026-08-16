@@ -10,8 +10,17 @@ import numpy as np
 from src.data.ascad import AES_SBOX
 
 
-def build(probs: np.ndarray, plaintexts: np.ndarray, target_byte: int, eps: float = 1e-40) -> np.ndarray:
+def build(probs: np.ndarray, plaintexts: np.ndarray, target_byte: int, eps: float = 1e-40,
+          mask: np.ndarray | None = None) -> np.ndarray:
     """Return scores (N, 256) float64: score[i,k] = log(probs[i, Sbox[p[i,byte]^k]] + eps).
+
+    `mask` (shape (N,), one already-selected masks[:, mask_index] column) is
+    required for ID_MASKED: the model was trained to predict
+    Z' = Sbox[p^k] ^ mask[i], not the unmasked Sbox[p^k], so the hypothesis
+    must be XORed with the same per-trace mask value before indexing `probs`
+    — scoring against the unmasked hypothesis silently tests the wrong thing
+    and never converges even when the model has clearly learned Z' (this bit
+    an early E08 run: loss dropped fine, GE never moved).
 
     Only 256-class leakage models (ID / ID_MASKED) are supported: the
     hypothesis index Sbox[p^k] ranges over 0..255 and is used to index
@@ -28,5 +37,7 @@ def build(probs: np.ndarray, plaintexts: np.ndarray, target_byte: int, eps: floa
     plaintext_byte = plaintexts[:, target_byte].astype(np.uint8)
     key_hypotheses = np.arange(256, dtype=np.uint8)
     hyp = AES_SBOX[plaintext_byte[:, None] ^ key_hypotheses[None, :]]  # (N, 256)
+    if mask is not None:
+        hyp = hyp ^ mask.astype(np.uint8)[:, None]
     p = probs[np.arange(n)[:, None], hyp].astype(np.float64)
     return np.log(p + eps)
