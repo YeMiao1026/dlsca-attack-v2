@@ -66,7 +66,7 @@ def main() -> None:
     mask = meta_e["masks"][:, mask_index].astype(np.uint8) if leakage_model == "ID_MASKED" else None
 
     print("=== building log-likelihood score matrix ===")
-    sc = scores.build(probs, meta_e["plaintext"], target_byte, mask=mask)
+    sc = scores.build(probs, meta_e["plaintext"], target_byte, leakage_model=leakage_model, mask=mask)
 
     attack_cfg = cfg["attack"]
     n_runs = attack_cfg["n_runs"]

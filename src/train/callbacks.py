@@ -8,9 +8,11 @@ computed on V instead (pitfall #4).
 from __future__ import annotations
 
 import keras
+import numpy as np
 
 from src.attack import keyrank, predict, scores
 from src.data.ascad import get_correct_key
+from src.data.labels import LeakageModel
 
 
 class GEModelSelection(keras.callbacks.Callback):
@@ -27,7 +29,8 @@ class GEModelSelection(keras.callbacks.Callback):
 
     def __init__(self, x_val, meta_val, target_byte: int, eval_every: int = 5,
                  n_runs_val: int = 20, patience: int = 6, checkpoint_path: str = "best.keras",
-                 max_traces: int = 1000, seed: int = 0, verbose: bool = True):
+                 max_traces: int = 1000, seed: int = 0, verbose: bool = True,
+                 leakage_model: LeakageModel = "ID", mask: np.ndarray | None = None):
         super().__init__()
         self.x_val = x_val
         self.plaintexts = meta_val["plaintext"]
@@ -39,6 +42,8 @@ class GEModelSelection(keras.callbacks.Callback):
         self.max_traces = min(max_traces, len(x_val))
         self.seed = seed
         self.verbose = verbose
+        self.leakage_model = leakage_model
+        self.mask = mask
 
         self.correct_key = get_correct_key(meta_val, target_byte)
         self.best_n_tge: int | None = None
@@ -63,7 +68,8 @@ class GEModelSelection(keras.callbacks.Callback):
             return
 
         probs = predict.run(self.model, self.x_val)
-        sc = scores.build(probs, self.plaintexts, self.target_byte)
+        sc = scores.build(probs, self.plaintexts, self.target_byte,
+                           leakage_model=self.leakage_model, mask=self.mask)
         ranks = keyrank.evaluate(sc, self.correct_key, n_runs=self.n_runs_val,
                                   max_traces=self.max_traces, seed=self.seed)
         ge_curve = keyrank.ge(ranks)

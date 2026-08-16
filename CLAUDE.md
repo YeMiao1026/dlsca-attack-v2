@@ -910,7 +910,7 @@ SR1 @ N=9000 = 1.0000
 
 ### B.17 E02-E08 骨架補齊 + 首批正式結果，抓到一個真的評分 bug
 
-補齊 CLAUDE.md §8.2 全部 E02-E08 的 config（`configs/data/ascad_desync{50,100}.yaml`、`configs/model/{cnn_best,resnet}.yaml`、`configs/exp/E0{2-8}_*.yaml`），沿用 E01 已驗證的 cnn_light 配方（one-cycle+MinMax+he_uniform，`lr=0.02, scale_percentage=0.05`）。E06/E07（cnn_best/resnet 還是 stub）、E02（動態增強還沒接）在對應位置乾淨丟出 `NotImplementedError`；E05（HW）在 `scores.build` 丟出明確的 `NotImplementedError`（見下方發現的 bug）。
+補齊 CLAUDE.md §8.2 全部 E02-E08 的 config（`configs/data/ascad_desync{50,100}.yaml`、`configs/model/{cnn_best,resnet}.yaml`、`configs/exp/E0{2-8}_*.yaml`），沿用 E01 已驗證的 cnn_light 配方（one-cycle+MinMax+he_uniform，`lr=0.02, scale_percentage=0.05`）。E06/E07（cnn_best/resnet 還是 stub）、E02（動態增強還沒接）在對應位置乾淨丟出 `NotImplementedError`；E05（HW）當時在 `scores.build` 丟出明確的 `NotImplementedError`（見下方發現的 bug；HW 評分後來在 B.19 補齊了）。
 
 跑了三個「理論上能跑」的實驗全量版本（A=30000/V=5000，50 epochs）：
 
@@ -954,4 +954,21 @@ PI          = -0.0237  （幾乎零資訊，訓練期GE預覽全程在123-182之
 **確認假設成立**：即使是全專案最容易學的目標，放到 desync50 上用同一套 one-cycle+he_uniform+MinMax 配方，一樣完全學不到東西。這代表 E01 那套花了 B.7-B.15 整輪調查才調出來的超參數，是針對 desync0 這個特定 optimization landscape 精細調校的結果，**沒有理由假設能直接遷移到 desync50/100**——尤其 `scale_percentage=0.05` 這種窄幅擺動的激進設定，換一個雜訊特性完全不同的任務，很可能連基本的學習都無法啟動（類似 E01 早期用錯超參數時的完全不收斂症狀，例如 `max_lr=1e-2` 或 `scale_percentage` 沒固定峰值時的情況）。
 
 **目前結論**：E03/E04 若要真正解決，大機率需要對 desync50/100 分別重新走一輪跟 B.7-B.15 同等規模的超參數調查（不能假設 desync0 調好的配方直接適用），而不是一次性的小修小補。這是一筆不小的時間投入（E01 那輪前後跑了超過 15 次訓練），這次先停在「確認根因類別」，是否要投入完整調查留待後續決定。
-3. **超參數調整要注意變數間的耦合**：`scale_percentage` 掃描一開始因為沒有同步固定峰值 LR 而得到錯誤結論，這類「表面上只改一個變數，實際上牽動了另一個沒明講的變數」的陷阱，在調參時很容易發生，也是這次調查裡少數需要回頭承認並修正的錯誤。
+
+### B.19 補齊 HW 評分：`scores.build` 泛化成吃 `leakage_model`，順便抓到 `GEModelSelection` 的同一個坑
+
+**設計**：`scores.build` 新增 `leakage_model` 參數（預設 `"ID"`，向下相容），內部依 leakage model 決定「金鑰假設要映射到 probs 的第幾欄」：
+
+| leakage_model | class(i,k) | 備註 |
+|---|---|---|
+| `ID` | `Sbox[p⊕k]`（0–255） | 原本的行為 |
+| `ID_MASKED` | `Sbox[p⊕k] ⊕ mask[i]`（0–255） | B.17 修的那個 |
+| `HW` | `HW_TABLE[Sbox[p⊕k]]`（0–8） | 這次新增，重用 `src/data/labels.py::HW_TABLE`，不重新定義 |
+
+順便把 `mask` 參數也上了防呆：**如果帶了 `mask` 但 `leakage_model` 不是 `ID_MASKED`，直接 `ValueError`**，不要讓它被靜默忽略——跟 B.17 修的那個 bug 是同一種「表面上做對了，實際上被吃掉」的模式，先把後門堵起來。`tests/test_scores.py` 新增 `test_hw_leakage_scoring_recovers_the_key`、`test_class_index_out_of_range_raises` 兩個測試（`tests/` 現在 26 個測試全過）。
+
+**追出的第二個同源 bug**：`src/train/callbacks.py::GEModelSelection`（訓練期間做 checkpoint 選擇用的）內部也呼叫 `scores.build`，但完全沒帶 `leakage_model`/`mask`，永遠用預設的 `ID` 行為。這代表：
+1. **E08 訓練當時印出來的所有 GE 預覽數字，其實從頭到尾都是用錯誤（未遮罩）的方式算的**——雖然事後 `03_evaluate.py` 用對的方法重新評估救回了正確的 N_TGE=3，但訓練期間的 checkpoint 選擇本身是憑錯誤的指標做的，只是這個任務太簡單、隨便一個 checkpoint 都夠好，才沒被看出來。
+2. **E05（HW）光是訓練都會直接崩潰**——`GEModelSelection` 用 `ID`（256欄）去索引只有 9 欄的 `probs`，撞上剛加的範圍檢查，`ValueError` 直接把訓練中斷。
+
+**已修正**：`GEModelSelection.__init__` 新增 `leakage_model`、`mask` 參數並傳給內部的 `scores.build`；`src/train/trainer.py::fit` 從 `cfg["leakage"]` 算出這兩個值餵給 callback（跟 `scripts/03_evaluate.py` 算法一致）。用縮小規模的 E05 跑過一次確認：訓練不再崩潰、`GEModelSelection` 的 GE 預覽正確反映 HW 評分、`02_run_attack.py`／`03_evaluate.py` 正確吃到 `probs.shape=(N,9)` 全程無誤。E05 目前還沒跑正式全量結果（這次是縮小規模的煙霧測試，不代表真實效能）。

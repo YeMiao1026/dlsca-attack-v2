@@ -7,6 +7,7 @@ import numpy as np
 
 from src.attack.scores import build
 from src.data.ascad import AES_SBOX
+from src.data.labels import HW_TABLE
 
 
 def test_scores_shape_and_dtype():
@@ -68,13 +69,51 @@ def test_masked_scores_require_the_mask_to_recover_the_key():
     probs[np.arange(n), true_class] = 0.7
     probs = probs.astype(np.float32)
 
-    sc_with_mask = build(probs, plaintexts, target_byte, mask=mask)
+    sc_with_mask = build(probs, plaintexts, target_byte, leakage_model="ID_MASKED", mask=mask)
     cumulative_with_mask = sc_with_mask.sum(axis=0)
     assert cumulative_with_mask.argmax() == correct_key
 
+    # leakage_model left at the "ID" default: mask is silently not applied,
+    # scoring against the wrong (unmasked) hypothesis — must not recover the key.
     sc_without_mask = build(probs, plaintexts, target_byte)
     cumulative_without_mask = sc_without_mask.sum(axis=0)
     assert cumulative_without_mask.argmax() != correct_key
+
+
+def test_hw_leakage_scoring_recovers_the_key():
+    """HW leakage: the model predicts HW(Sbox[p^k]) (9 classes, 0..8), so the
+    hypothesis must be mapped through HW_TABLE before indexing probs — same
+    "score against what the model actually predicts" principle as the mask
+    fix above, just a different, coarser many-to-one mapping.
+    """
+    rng = np.random.default_rng(5)
+    n, target_byte, correct_key = 500, 2, 133
+    plaintexts = rng.integers(0, 256, (n, 16), dtype=np.uint8)
+
+    true_hw = HW_TABLE[AES_SBOX[plaintexts[:, target_byte] ^ np.uint8(correct_key)]]
+    probs = np.full((n, 9), 0.3 / 8, dtype=np.float64)
+    probs[np.arange(n), true_hw] = 0.7
+    probs = probs.astype(np.float32)
+
+    sc = build(probs, plaintexts, target_byte, leakage_model="HW")
+    assert sc.shape == (n, 256)
+    cumulative = sc.sum(axis=0)
+    assert cumulative.argmax() == correct_key
+
+
+def test_class_index_out_of_range_raises():
+    # leakage_model="ID" needs 256 columns; a 9-column (HW-shaped) probs array
+    # must fail loudly, not silently index garbage or raise a confusing IndexError.
+    rng = np.random.default_rng(6)
+    n = 10
+    plaintexts = rng.integers(0, 256, (n, 16), dtype=np.uint8)
+    probs = rng.dirichlet(np.ones(9), size=n).astype(np.float32)
+
+    try:
+        build(probs, plaintexts, target_byte=2, leakage_model="ID")
+        raise AssertionError("should have raised ValueError")
+    except ValueError:
+        pass
 
 
 def test_log_summation_does_not_underflow_past_fifty_traces():

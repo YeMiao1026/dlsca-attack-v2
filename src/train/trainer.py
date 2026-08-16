@@ -45,6 +45,10 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
         metrics=["accuracy"],
     )
 
+    leakage_model = cfg["leakage"]["model"]
+    mask_index = cfg["leakage"].get("mask_index")
+    mask = meta_v["masks"][:, mask_index].astype(np.uint8) if leakage_model == "ID_MASKED" else None
+
     ge_callback = GEModelSelection(
         x_val=x_v,
         meta_val=meta_v,
@@ -55,6 +59,8 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
         checkpoint_path=checkpoint_path,
         max_traces=selection_cfg.get("max_traces", 1000),
         seed=cfg.get("seed", 0),
+        leakage_model=leakage_model,
+        mask=mask,
     )
 
     callbacks: list[keras.callbacks.Callback] = [ge_callback]
