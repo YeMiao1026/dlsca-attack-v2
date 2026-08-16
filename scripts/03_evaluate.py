@@ -37,7 +37,15 @@ def parse_args() -> argparse.Namespace:
                     help="dotted.key=value overrides on top of config_snapshot.yaml, e.g. attack.max_traces=9000 "
                          "— applied in-memory only, does not touch the archived snapshot or require retraining/"
                          "re-running 02_run_attack.py (probs.npy doesn't depend on evaluation-stage params)")
-    return p.parse_args()
+    p.add_argument("--probs", default=None,
+                    help="path to an alternative probs.npy (e.g. from a defended-waveform run via "
+                         "02_run_attack.py --traces/--out). Requires --out.")
+    p.add_argument("--out", default=None,
+                    help="where to write metrics.json (default: {run}/metrics.json; required when --probs is set)")
+    args = p.parse_args()
+    if args.probs and not args.out:
+        p.error("--probs requires --out (never silently overwrite the run's own metrics.json)")
+    return args
 
 
 def main() -> None:
@@ -49,8 +57,9 @@ def main() -> None:
     if args.override:
         cfg = apply_overrides(cfg, args.override)
 
-    probs = np.load(run_dir / "probs.npy")
-    print(f"=== loaded {run_dir / 'probs.npy'}: shape={probs.shape} dtype={probs.dtype} ===")
+    probs_path = Path(args.probs) if args.probs else run_dir / "probs.npy"
+    probs = np.load(probs_path)
+    print(f"=== loaded {probs_path}: shape={probs.shape} dtype={probs.dtype} ===")
 
     target_byte = cfg["data"]["target_byte"]
     print(f"=== loading {cfg['data']['path']} for E metadata ===")
@@ -107,7 +116,8 @@ def main() -> None:
         y_e = build_labels(meta_e, leakage_model, target_byte, mask_index=mask_index)
         metrics["pi"] = compute_pi(probs, y_e, cfg["leakage"]["n_classes"])
 
-    out_path = run_dir / "metrics.json"
+    out_path = Path(args.out) if args.out else run_dir / "metrics.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(metrics, indent=2))
     print(f"=== saved {out_path} ===")
 

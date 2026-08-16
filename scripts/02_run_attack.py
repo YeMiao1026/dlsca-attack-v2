@@ -32,7 +32,17 @@ from src.data.split import load as load_split
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the attacker model on E (CLAUDE.md §5.2 stage 4)")
     p.add_argument("--run", required=True, help="run directory produced by 01_train_attacker.py")
-    return p.parse_args()
+    p.add_argument("--traces", default=None,
+                    help="path to a .npy of alternative raw E-set traces (same shape/order as "
+                         "attack_traces[split.e], e.g. a defended waveform for Stage B's static A0 "
+                         "attacker evaluation) to use instead of the clean ASCAD Attack_traces. "
+                         "Requires --out so the clean baseline's probs.npy is never overwritten.")
+    p.add_argument("--out", default=None,
+                    help="where to write probs.npy (default: {run}/probs.npy; required when --traces is set)")
+    args = p.parse_args()
+    if args.traces and not args.out:
+        p.error("--traces requires --out (never silently overwrite the run's own probs.npy)")
+    return args
 
 
 def main() -> None:
@@ -47,7 +57,14 @@ def main() -> None:
     split = load_split(str(run_dir / "split_indices.npz"))
 
     traces_a = data.profiling_traces[split.a]
-    traces_e = data.attack_traces[split.e]
+    if args.traces:
+        print(f"=== loading alternative E-set traces from {args.traces} (defended waveform) ===")
+        traces_e = np.load(args.traces)
+        expected_shape = data.attack_traces[split.e].shape
+        if traces_e.shape != expected_shape:
+            raise ValueError(f"--traces shape {traces_e.shape} != expected {expected_shape}")
+    else:
+        traces_e = data.attack_traces[split.e]
 
     # Re-derive resync (+ Standardizer / MinMaxScaler, if enabled) from A
     # exactly as 01_train_attacker.py did — all deterministic given A, so
@@ -98,7 +115,8 @@ def main() -> None:
         sys.exit(1)
     print(f"  probs shape={probs.shape} dtype={probs.dtype} row-sum range=[{row_sums.min():.6f}, {row_sums.max():.6f}]")
 
-    out_path = run_dir / "probs.npy"
+    out_path = Path(args.out) if args.out else run_dir / "probs.npy"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     np.save(out_path, probs)
     print(f"=== saved {out_path} ===")
 
