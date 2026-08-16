@@ -46,6 +46,12 @@ E03/E04 的負面結果經 B.18 鑑別診斷後，確認根因是「desync0 調�
 |---|---|---|---|---|
 | `E06_cnn_best_20260816_1452` | **CPU環境縮短版12epoch，非原論文75epoch**，RMSprop lr=1e-5，batch=200，desync0，ID leakage | None | 162.39（比隨機127.5更差） | 原論文75epoch在這台無GPU機器要6.6小時，經使用者同意縮成12epoch(~1小時)拿誠實中間資料點。loss全程幾乎沒動（5.5452→5.5425，隨機基準5.545），PI=-0.0192（幾乎零資訊）。**不能代表cnn_best真實能力**，純粹是RMSprop lr=1e-5配合75epoch才收斂、12epoch連基準線都還沒真正脫離。細節見 CLAUDE.md 附錄 B.21 |
 
+## E07（resnet）：完整訓練預算下的負面結果
+
+| run_dir | 配方 | N_TGE | GE@1000 | 備註 |
+|---|---|---|---|---|
+| `E07_resnet_20260816_1559` | **完整跑滿**，Adam lr=1e-3，batch=128，epochs=100（epoch50觸發patience早停，非資源限制），desync0，ID leakage | None | 123.27（接近隨機127.5，略低） | 跟E06不同，這是誠實完整的負面結果，不是縮短版。loss有下降（5.5547→5.4451）但幅度不足以讓攻擊收斂，PI=-0.1129（略負）。初步判讀：resnet架構完全沒調過訓練方法論（one-cycle/初始化等），跟E03/E04一樣「還沒調」不等於「做不到」。細節見 CLAUDE.md 附錄 B.22 |
+
 ## 命名說明
 
 - 目錄名格式 `{exp_id}_{timestamp}`，`exp_id` 對應 `configs/exp/*.yaml` 的 `exp_id` 欄位。
