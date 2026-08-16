@@ -983,3 +983,11 @@ SR1 @ N=3000 = 1.0000
 ```
 
 **表現比預期好很多**——訓練期預覽 GE 早在 epoch 25 就掉到 0.90（1000條窗口內就快收斂），正式評估拉寬到 3000 條窗口後完全收斂，GE 曲線（`runs/E05_hw_leakage_20260816_1415/figures/ge_curve.png`）平滑降到 0，是目前全部實驗裡收斂第二快的（僅次於 E08 的 N_TGE=3），比 E01 的 ID 目標（N_TGE=475）快 3 倍以上。這符合 SCA 文獻對 HW 模型的一般認知：雖然只有 9 類、資訊量理論上限較低（log2(9)≈3.17 bits vs ID 的 8 bits），但類別邊界通常對應更穩定的功耗特徵（漢明重量直接關聯翻轉位元數），在很多實務情境下比 256 類的 ID 更好學。
+
+### B.20 補齊 `cnn_best.py` / `resnet.py`
+
+**`cnn_best`**：`ASCAD/ASCAD_train_models.py::cnn_best`（vendored 上游參考碼）逐行對照移植——5 個 Conv1D(k=11, filters=64/128/256/512/512, relu, same) + AveragePooling(2) 區塊，接 Flatten + Dense(4096,relu)×2 + Dense(256,softmax)。**參數量精確對上文件寫的 66,652,544**（`m.count_params()` 驗證過，不是約略值）。`configs/model/cnn_best.yaml` 沿用陷阱清單 #10 的 RMSprop lr=1e-5（不能用 Adam 1e-3，會發散）。
+
+**`resnet`**：CLAUDE.md §6.1 沒有上游參考碼可抄，只給了「3個殘差區塊+GAP，約30K參數」的目標，自行設計：Stem Conv(k=3)+BN+ReLU+AvgPool，接 3 個殘差區塊（每個區塊 Conv(k=3)+BN+ReLU+Conv(k=3)+BN，channel數不同時用 1×1 conv 投影 skip connection，區塊間 AvgPool(2)），最後 GlobalAveragePooling1D+Dense(softmax)。用 ReLU+he_normal（標準搭配，不是 cnn_light 那種「理論配錯但實測有效」的 SELU+he_uniform，因為這裡沒有歷史結果可以推翻理論）。用 `_FILTERS=(12,24,48)` 調出 **28,816 參數**，貼近「約30K」的目標。
+
+兩個都用縮小規模（A=200-500、1-2 epochs）跑過訓練→推論→評估全流程，確認沒有崩潰，管線接線正確（`cnn_best` 的 66.6M 參數模型單步訓練也順利跑完，只是慢）。**都還沒跑正式全量結果**——`configs/model/{cnn_best,resnet}.yaml` 目前分別是原論文超參數（cnn_best）跟隨手選的 Adam 1e-3（resnet），都還沒經過任何調參，不能假設能直接複製 E01/E05 的收斂表現（跟 desync50/100 的情況一樣，換了模型/資料通常需要重新調）。

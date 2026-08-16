@@ -1,7 +1,8 @@
 # CLAUDE.md §8.2: E06 = cnn_best 對照（深層對照，66.6M 參數，VGG風格）。
-#
-# NOTE: src/models/cnn_best.py 目前仍是 stub，這份 config 現在跑會在
-# 模型建構那一步就 raise NotImplementedError。
+# src/models/cnn_best.py 已實作（逐行對照 ASCAD/ASCAD_train_models.py::cnn_best
+# 這個上游參考碼，參數量精確對上 66,652,544），這份 config 可以完整跑。
+# 注意 configs/model/cnn_best.yaml 用 RMSprop lr=1e-5（陷阱清單 #10，改
+# Adam 1e-3 會發散）；還沒針對這個模型另外調過 one-cycle 之類的訓練方法論。
 exp_id: E06_cnn_best
 description: cnn_best（ASCAD 原論文 VGG 風格，66.6M參數）對照組，desync0
 

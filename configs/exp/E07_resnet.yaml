@@ -1,8 +1,9 @@
 # CLAUDE.md §8.2: E07 = resnet 對照（Stage B transferability，測試架構
 # 錯配時的可遷移性，約30K參數）。
-#
-# NOTE: src/models/resnet.py 目前仍是 stub，這份 config 現在跑會在
-# 模型建構那一步就 raise NotImplementedError。
+# src/models/resnet.py 已實作（3個殘差區塊+GAP，28,816參數，ReLU+BN+he_normal，
+# 沒有上游參考碼可抄，自行設計逼近§6.1的~30K目標），這份 config 可以完整跑。
+# 沿用 E01 的 one-cycle 訓練配方（configs/model/resnet.yaml 目前用固定
+# Adam lr=1e-3，還沒針對這個架構調過 one-cycle 之類的訓練方法論）。
 exp_id: E07_resnet
 description: resnet（3個殘差區塊+GAP）對照組，desync0
 
