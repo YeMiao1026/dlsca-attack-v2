@@ -18,10 +18,19 @@ import numpy as np
 
 def resync(traces: np.ndarray, reference: np.ndarray, max_shift: int) -> tuple[np.ndarray, np.ndarray]:
     """Align every row of `traces` to `reference` by the integer shift (within
-    +-max_shift) that maximizes cross-correlation. Returns (aligned, shifts);
-    aligned traces are rolled into `reference`'s time frame and re-wrap at the
-    edges (acceptable here since informative content lives away from the
-    boundary once the desync window's max offset is respected).
+    +-max_shift) that maximizes *normalized* cross-correlation. Returns
+    (aligned, shifts); aligned traces are rolled into `reference`'s time frame
+    and re-wrap at the edges (acceptable here since informative content lives
+    away from the boundary once the desync window's max offset is respected).
+
+    Scores are normalized (divided by the L2 norm of each overlapping
+    segment), not a raw dot product — larger |shift| means fewer overlapping
+    samples, so an unnormalized dot product is systematically smaller there
+    regardless of alignment quality, biasing the argmax toward small shifts.
+    This bias is negligible when max_shift is a small fraction of the trace
+    length (e.g. desync50's 50/700) but dominates once it isn't (desync100's
+    100/700 made the unnormalized version nearly random — see CLAUDE.md
+    附錄 B.33).
     """
     traces = np.asarray(traces, dtype=np.float64)
     reference = np.asarray(reference, dtype=np.float64)
@@ -38,7 +47,8 @@ def resync(traces: np.ndarray, reference: np.ndarray, max_shift: int) -> tuple[n
         else:
             a = tr_centered[:, : length + s]
             b = ref_centered[-s:]
-        scores[:, i] = a @ b
+        denom = np.sqrt((a ** 2).sum(axis=1)) * np.sqrt((b ** 2).sum()) + 1e-12
+        scores[:, i] = (a @ b) / denom
 
     best_shifts = shifts[np.argmax(scores, axis=1)]
     aligned = np.empty_like(traces)
