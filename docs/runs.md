@@ -76,6 +76,17 @@
 
 **desync100 resync後3次系統性重調（B.34-B.36）全部負面**，暫停回報後使用者指示繼續投入完整調查（task #10）。
 
+## cnn_best（E06）完整調查（task #11）Phase 1：one-cycle峰值掃描
+
+| peak | GE@1000 | PI |
+|---|---|---|
+| 1e-4 | 163.33 | -0.0183 |
+| 1e-3 | 158.68 | -0.0273 |
+| 1e-5 | 152.82 | -0.0257 |
+| flat基準（B.27） | 157.77 | -0.0241 |
+
+**四點全部無法區分，one-cycle對cnn_best完全沒有幫助**——跟cnn_light/desync100的經驗明顯不同。已暫停回報，見 CLAUDE.md 附錄 B.43-B.44。
+
 ## desync100 完整調查（task #10，E01同等規模）Phase 1：max_lr掃描
 
 | run_dir | max_lr | GE@1000 | GE@9000 | PI | 備註 |
