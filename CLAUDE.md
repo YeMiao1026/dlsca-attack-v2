@@ -991,3 +991,29 @@ SR1 @ N=3000 = 1.0000
 **`resnet`**：CLAUDE.md §6.1 沒有上游參考碼可抄，只給了「3個殘差區塊+GAP，約30K參數」的目標，自行設計：Stem Conv(k=3)+BN+ReLU+AvgPool，接 3 個殘差區塊（每個區塊 Conv(k=3)+BN+ReLU+Conv(k=3)+BN，channel數不同時用 1×1 conv 投影 skip connection，區塊間 AvgPool(2)），最後 GlobalAveragePooling1D+Dense(softmax)。用 ReLU+he_normal（標準搭配，不是 cnn_light 那種「理論配錯但實測有效」的 SELU+he_uniform，因為這裡沒有歷史結果可以推翻理論）。用 `_FILTERS=(12,24,48)` 調出 **28,816 參數**，貼近「約30K」的目標。
 
 兩個都用縮小規模（A=200-500、1-2 epochs）跑過訓練→推論→評估全流程，確認沒有崩潰，管線接線正確（`cnn_best` 的 66.6M 參數模型單步訓練也順利跑完，只是慢）。**都還沒跑正式全量結果**——`configs/model/{cnn_best,resnet}.yaml` 目前分別是原論文超參數（cnn_best）跟隨手選的 Adam 1e-3（resnet），都還沒經過任何調參，不能假設能直接複製 E01/E05 的收斂表現（跟 desync50/100 的情況一樣，換了模型/資料通常需要重新調）。
+
+### B.21 E06（cnn_best）正式跑：CPU 環境下 75 epoch 不可行，12 epoch 縮短版是誠實的負面結果
+
+`configs/model/cnn_best.yaml` 依原論文設定是 `epochs=75`（RMSprop lr=1e-5，見 B.20）。全量版第一個 epoch 實測 317 秒，這台機器沒有 GPU（`env.json` 確認 CUDA 不可用，全程吃 7.6+ 核心 CPU），75 epochs 換算下來要 **6.6 小時**，明顯不適合在一個對話 session 裡等待完成，先跟使用者確認後拿到批准：**縮減到 12 epochs（約1小時）跑一個真實但不完整的結果，不是為了得出正式結論，是為了在時間預算內拿到誠實的中間資料點**。
+
+**跑法**：`python3 scripts/01_train_attacker.py --config configs/exp/E06_cnn_best.yaml --override train.epochs=12`，其餘完全沿用 `configs/model/cnn_best.yaml`（RMSprop lr=1e-5、batch=200）與 `configs/exp/E06_cnn_best.yaml`（A=30000/V=5000、desync0、ID leakage、MinMax）。跑完後正常走 `02_run_attack.py` + `03_evaluate.py`（`attack.max_traces=1000`，未拉寬——這是負面結果，拉寬窗口不會改變結論，故未比照 E01 額外多跑）。
+
+**結果（`runs/E06_cnn_best_20260816_1452/`）**：
+
+```
+loss:  5.5452 → 5.5425（12 epochs，幾乎沒動，隨機基準 log(256)=5.545）
+train accuracy: 全程卡在 0.42%–0.49%（隨機基準 1/256≈0.39%）
+val_loss:       5.5451 → 5.5462（最後兩個epoch甚至還在惡化）
+
+N_TGE  = None（未收斂）
+N_SR90 = None
+GE @ N=1000  = 162.39   （比隨機基準 127.5 還糟）
+SR1 @ N=1000 = 0.0000   （100次獨立攻擊，一次都沒排到第一）
+PI           = -0.0192 bits（幾乎零資訊）
+```
+
+訓練期 `GEModelSelection` 唯一存下的 checkpoint 是 epoch 10（`final_GE=111.85`，比隨機基準 127.5 略好，是 50 epochs 訓練期間 20-run 快速預覽下唯一一次「優於隨機」的瞬間），但用正式 100 次獨立重排評估後，這個 checkpoint 在完整 1000 條窗口下仍然是負面結果（GE=162.39，比隨機基準還差）——這正是 CLAUDE.md 陷阱清單裡反覆提醒的「單次/少量run的預覽會被雜訊騙到」的又一個實例，只是這次雜訊剛好在錯誤的方向上給了一個看似樂觀的假訊號。
+
+**這是預期中的結果，不是 bug**：RMSprop lr=1e-5 是刻意設定得很保守的學習率（陷阱清單#10：改用 Adam 1e-3 會發散，但代價是收斂極慢），原論文用 75 epochs 正是為了配合這麼小的 LR 才收斂。12 epochs 連 loss 都還沒真正開始離開隨機基準（loss 從 5.5452 只降到 5.5425，變化量是 E01 同樣訓練規模下降幅的一小部分），可以合理預期 75 epochs 版本會有實質不同的結果，但**這份 12-epoch 資料點本身不能用來評斷 cnn_best 在這個任務上的真實能力**，純粹是 CPU 環境時間預算限制下的產物。
+
+**結論與標籤**：`runs/E06_cnn_best_20260816_1452` 明確標記為「**CPU環境縮短版12epoch，非原論文75epoch的結果，不能代表cnn_best真實能力**」。若之後有 GPU 資源或能接受多小時等待，應該重跑完整 75 epochs 版本才能對 cnn_best 下正式結論；在那之前，E06 在跨實驗比較表裡應該標註為「未完整驗證」而非直接跟 E01/E05/E08 的結果並列比較。
