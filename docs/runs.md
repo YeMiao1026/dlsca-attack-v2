@@ -87,6 +87,16 @@
 **Phase 1 直接命中**（跟desync50 Phase 1全數失敗不同）：`lr=1e-3`（三點裡最保守）明顯優於`5e-3`/`1e-2`。下一步：以此為基礎掃`end_percentage`/`scale_percentage`。
 
 **run_dir 撞名 bug 修過兩次**：第一次修分鐘→秒精度（B.35）不夠，第二次加上PID才徹底解決（B.37），`scripts/01_train_attacker.py` 現在的 run_dir 格式是 `{exp_id}_{timestamp}_{pid}`。
+
+## desync100 Phase 2：end_percentage掃描
+
+| run_dir | end_percentage | GE@1000 | GE@9000 | GE@10000 | PI | SR1@1000 |
+|---|---|---|---|---|---|---|
+| `E04_desync100_20260816_200044_391859` | **0.1** | **84.42** | **14.92** | **10.00** | -0.4213 | 0.02 |
+| （沿用Phase1贏家） | 0.2 | 95.17 | 41.80 | — | -0.3604 | 0.00 |
+| `E04_desync100_20260816_200044_391857` | 0.35 | 95.81 | — | — | -0.4194 | 0.02 |
+
+**`end_percentage=0.1` 目前最佳，GE@10000=10.00，非常接近完全收斂**。細節見 CLAUDE.md 附錄 B.39。下一步：以此為基礎掃 `scale_percentage`（峰值固定1e-3）。
 | `E04_desync100_20260816_1343` | desync100 | None | 168.39 | 同樣負面，抖動更大更沒學到 |
 | `E04_desync100_20260816_1738` | 單次確認跑（沿用desync50表現較好的flat LR，非完整掃描——scope說明見B.26） | None | 138.43（比168.39好一些） | 負面，PI=-0.0795仍是負值，同desync50模式再現。細節見 CLAUDE.md 附錄 B.26 |
 | `E08_masked_label_20260816_1349` | 遮罩已知標籤，desync0 | **3** | 0.0 | **本專案所有實驗裡最快收斂**。初次評估異常（GE不收斂但loss明顯在降）追出 `scores.build` 沒處理mask的真bug，修正後才是這個數字，見 CLAUDE.md 附錄 B.17 |
