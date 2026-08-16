@@ -1,8 +1,10 @@
 # CLAUDE.md §8.2: E02 = 噪訊增強訓練。
 #
-# NOTE: src/train/trainer.py::fit 目前對 augment.gaussian.enabled=true 會直接
-# raise NotImplementedError（動態每 epoch 增強的訓練迴圈故意還沒接，見附錄
-# B.5）。這份 config 先寫好骨架，真正能跑要等那段訓練迴圈實作完成。
+# src/train/trainer.py::fit 已實作動態每 epoch 高斯噪訊增強
+# （_GaussianAugmentedDataset，每個 epoch 用 cfg.seed+epoch 重新生成噪訊，不是
+# 固定資料集，見附錄 B.5/§8.1）。沿用 E01 已驗證收斂的 cnn_light 配方
+# （configs/model/cnn_light.yaml：he_uniform + one-cycle + MinMax），唯一差異
+# 是這裡多開了 augment.gaussian.enabled，用來對照「噪訊增強是否讓模型更強健」。
 exp_id: E02_noisy_augment
 description: 訓練時動態高斯噪訊增強（sigma_ratio=0.5），與 E01 clean baseline 對照
 

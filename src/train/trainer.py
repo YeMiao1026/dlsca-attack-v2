@@ -10,6 +10,7 @@ from typing import Any
 import keras
 import numpy as np
 
+from src.data.preprocess import gaussian_augment
 from src.train.callbacks import GEModelSelection
 from src.train.lr_schedule import OneCycleLR
 
@@ -27,6 +28,37 @@ def _with_channel_dim(x: np.ndarray) -> np.ndarray:
     return x[..., None] if x.ndim == 2 else x
 
 
+class _GaussianAugmentedDataset(keras.utils.PyDataset):
+    """Feeds model.fit() a freshly re-noised copy of `x` every epoch (pitfall
+    #11 — augmentation must not be a fixed precomputed dataset). Seed derives
+    from cfg.seed + epoch per CLAUDE.md §8.1. Noise generation itself is the
+    pure `gaussian_augment` function in src/data/preprocess.py; this class is
+    just the stateful Keras-facing glue (P2 confines side effects to trainer.py).
+    """
+
+    def __init__(self, x: np.ndarray, y: np.ndarray, batch_size: int, sigma_ratio: float, seed: int, **kwargs):
+        super().__init__(**kwargs)
+        self.x = x
+        self.y = y
+        self.batch_size = batch_size
+        self.sigma_ratio = sigma_ratio
+        self.seed = seed
+        self.epoch = 0
+        self._augmented = gaussian_augment(self.x, self.sigma_ratio, seed=self.seed + self.epoch)
+
+    def __len__(self) -> int:
+        return int(np.ceil(len(self.x) / self.batch_size))
+
+    def __getitem__(self, idx: int):
+        lo = idx * self.batch_size
+        hi = min(lo + self.batch_size, len(self.x))
+        return _with_channel_dim(self._augmented[lo:hi]), self.y[lo:hi]
+
+    def on_epoch_end(self) -> None:
+        self.epoch += 1
+        self._augmented = gaussian_augment(self.x, self.sigma_ratio, seed=self.seed + self.epoch)
+
+
 def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta_v: np.ndarray,
         model: keras.Model, cfg: dict[str, Any], checkpoint_path: str = "best.keras") -> tuple[keras.Model, list[dict]]:
     """Train on (A) with model selection driven by GEModelSelection on (V).
@@ -35,8 +67,7 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
     score attack runs — it is not used as a training label.
     """
     train_cfg = cfg["train"]
-    if cfg.get("augment", {}).get("gaussian", {}).get("enabled"):
-        raise NotImplementedError("per-epoch gaussian augmentation (CLAUDE.md §6.4) is not wired into fit() yet")
+    augment_cfg = cfg.get("augment", {}).get("gaussian", {})
 
     selection_cfg = train_cfg.get("selection", {})
     model.compile(
@@ -75,14 +106,29 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
     elif lr_schedule not in (None, "flat"):
         raise ValueError(f"unknown lr_schedule: {lr_schedule!r}")
 
-    history = model.fit(
-        _with_channel_dim(x_a), y_a,
-        validation_data=(_with_channel_dim(x_v), y_v),
-        batch_size=train_cfg["batch_size"],
-        epochs=train_cfg["epochs"],
-        callbacks=callbacks,
-        verbose=2,
-    )
+    if augment_cfg.get("enabled"):
+        train_data = _GaussianAugmentedDataset(
+            x_a, y_a,
+            batch_size=train_cfg["batch_size"],
+            sigma_ratio=augment_cfg.get("sigma_ratio", 0.5),
+            seed=cfg.get("seed", 0),
+        )
+        history = model.fit(
+            train_data,
+            validation_data=(_with_channel_dim(x_v), y_v),
+            epochs=train_cfg["epochs"],
+            callbacks=callbacks,
+            verbose=2,
+        )
+    else:
+        history = model.fit(
+            _with_channel_dim(x_a), y_a,
+            validation_data=(_with_channel_dim(x_v), y_v),
+            batch_size=train_cfg["batch_size"],
+            epochs=train_cfg["epochs"],
+            callbacks=callbacks,
+            verbose=2,
+        )
 
     if os.path.exists(checkpoint_path):
         best_model = keras.models.load_model(checkpoint_path)
