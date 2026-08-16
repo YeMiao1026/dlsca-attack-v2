@@ -74,7 +74,19 @@
 | `E04_desync100_20260816_1921`（seed123，⚠️輸出目錄跟gentle撞名，config_snapshot.yaml不準，已用train_history.csv比對確認模型身分） | resync + 同B.31配方 + `seed=123` | 166.76（desync100最差） | — | 0.00 | -0.7554（**全調查最負**） | 排除「B.34只是運氣不好」的假設。見 CLAUDE.md 附錄 B.35 |
 | `E04_desync100_20260816_1931`（`runs_gentle/`，獨立目錄避免撞名） | resync + `lr=5e-3, scale=0.1` | 138.68 | — | 0.00 | -0.4918 | 見 CLAUDE.md 附錄 B.36 |
 
-**desync100 resync後3次系統性重調（B.34-B.36）全部負面**，暫停回報，等待後續決定是否投入E01等級的完整調查。resync演算法本身已確認對desync50/100同樣有效（B.33），問題在訓練配方而非對齊。
+**desync100 resync後3次系統性重調（B.34-B.36）全部負面**，暫停回報後使用者指示繼續投入完整調查（task #10）。
+
+## desync100 完整調查（task #10，E01同等規模）Phase 1：max_lr掃描
+
+| run_dir | max_lr | GE@1000 | GE@9000 | PI | 備註 |
+|---|---|---|---|---|---|
+| （沿用B.36 gentle） | 5e-3 | 138.68 | — | -0.4918 | 負面 |
+| `E04_desync100_20260816_194046`（lr1e2） | 1e-2 | 153.82 | — | -0.0258 | 負面，⚠️此目錄一度跟lr1e3撞名（同一秒啟動），已用train_history.csv比對確認身分 |
+| `E04_desync100_20260816_195051_373600`（lr1e3） | **1e-3** | **95.17** | **41.80（持續下降）** | -0.3604 | **desync100首次真正突破，曲線形狀健康非假警報**。見 CLAUDE.md 附錄 B.38 |
+
+**Phase 1 直接命中**（跟desync50 Phase 1全數失敗不同）：`lr=1e-3`（三點裡最保守）明顯優於`5e-3`/`1e-2`。下一步：以此為基礎掃`end_percentage`/`scale_percentage`。
+
+**run_dir 撞名 bug 修過兩次**：第一次修分鐘→秒精度（B.35）不夠，第二次加上PID才徹底解決（B.37），`scripts/01_train_attacker.py` 現在的 run_dir 格式是 `{exp_id}_{timestamp}_{pid}`。
 | `E04_desync100_20260816_1343` | desync100 | None | 168.39 | 同樣負面，抖動更大更沒學到 |
 | `E04_desync100_20260816_1738` | 單次確認跑（沿用desync50表現較好的flat LR，非完整掃描——scope說明見B.26） | None | 138.43（比168.39好一些） | 負面，PI=-0.0795仍是負值，同desync50模式再現。細節見 CLAUDE.md 附錄 B.26 |
 | `E08_masked_label_20260816_1349` | 遮罩已知標籤，desync0 | **3** | 0.0 | **本專案所有實驗裡最快收斂**。初次評估異常（GE不收斂但loss明顯在降）追出 `scores.build` 沒處理mask的真bug，修正後才是這個數字，見 CLAUDE.md 附錄 B.17 |
