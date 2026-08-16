@@ -110,7 +110,17 @@
 
 ## desync100 目前最佳配方（截至此份索引）
 
-`max_lr=1e-3（peak）, end_percentage=0.1, scale_percentage=0.2, train.lr=2.5e-4` + resync（max_shift=100）。**GE@10000=7.00**，非常接近完全收斂但尚未跌破1。跟desync50最佳配方（`lr=0.02, end_percentage=0.2, scale_percentage=0.05`）幾乎每個維度都不同。三個超參數維度（max_lr/end_percentage/scale_percentage）都已找到局部最優，見 CLAUDE.md 附錄 B.41 總結。
+`max_lr=1e-3（peak）, end_percentage=0.1, scale_percentage=0.2, epochs=50, train.lr=2.5e-4` + resync（max_shift=100）。**GE@10000=7.00**，非常接近完全收斂但尚未跌破1。跟desync50最佳配方（`lr=0.02, end_percentage=0.2, scale_percentage=0.05`）幾乎每個維度都不同。**四個超參數維度**（max_lr/end_percentage/scale_percentage/epochs）都已找到局部最優，見 CLAUDE.md 附錄 B.41-B.42 總結。
+
+## desync100 Phase 4：epoch數/schedule長度掃描
+
+| epochs | GE@1000 | GE@10000 | PI |
+|---|---|---|---|
+| 30 | 82.46 | 11.00 | -0.2568 |
+| **50（贏家）** | **69.97** | **7.00** | -0.6678 |
+| 75 | 111.71 | — | -0.0500 |
+
+確認50 epochs也是局部最優，四維度全數摸到邊界。見 CLAUDE.md 附錄 B.42（含一次操作插曲：工具呼叫拒絕後底層SSH仍執行，造成重複訓練，已清理無資料損毀）。
 | `E04_desync100_20260816_1343` | desync100 | None | 168.39 | 同樣負面，抖動更大更沒學到 |
 | `E04_desync100_20260816_1738` | 單次確認跑（沿用desync50表現較好的flat LR，非完整掃描——scope說明見B.26） | None | 138.43（比168.39好一些） | 負面，PI=-0.0795仍是負值，同desync50模式再現。細節見 CLAUDE.md 附錄 B.26 |
 | `E08_masked_label_20260816_1349` | 遮罩已知標籤，desync0 | **3** | 0.0 | **本專案所有實驗裡最快收斂**。初次評估異常（GE不收斂但loss明顯在降）追出 `scores.build` 沒處理mask的真bug，修正後才是這個數字，見 CLAUDE.md 附錄 B.17 |
