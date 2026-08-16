@@ -1139,3 +1139,31 @@ N_TGE       = None（未收斂）
 | desync100（B.26） | 1次確認跑（沿用desync50最佳嘗試） | 負面，同一模式再現 |
 
 **三者共同結論**：**沒有一個異架構/異資料情境能被 2-3 次輕量超參數嘗試解決**。這不是精簡掃描這個做法本身失敗，而是誠實地確認了 E01 當初的經驗——B.7-B.15 花了 15 次左右系統性掃描（分別對 init 方式、one-cycle 三個超參數獨立掃描）才找到有效配方，這個投入量級是「輕量嘗試」的 5-8 倍。使用者已經明確選擇「精簡版：每個情境跑3-5次關鍵掃描」而非「完整版：跟E01同等規模」，這三個任務就是在這個範疇下的誠實產出——**找不到解法本身就是結論的一部分**，三個情境若要真正解決，都要留到後續投入 E01 等級的資源才有機會，目前先如實記錄現況、不勉強做超出範疇的事。
+
+### B.27 GitHub 上線 + 實驗室 GPU server 環境建置 + E06 完整 75-epoch 結果：確認是配方本身的問題，不是時間預算限制
+
+**GitHub**：專案已推上 `https://github.com/YeMiao1026/dlsca-attack-v2`（public）。這台機器原本沒有 `gh` CLI、沒有 SSH key，過程中發現這個 session 的 `sudo`／互動式密碼輸入都無法在這個介面下運作（沒有真正的 TTY），改用不需要 root 的方式把 `gh` 官方執行檔直接下載到 `~/.local/bin`，用 `gh auth login` 的 device-flow（瀏覽器貼一次性代碼）完成認證，繞開了密碼輸入的限制。
+
+**實驗室 GPU server 環境建置**（`B11209025@140.118.9.22`，host `dell760`）：硬體規格為 **2× NVIDIA L40S（各46GB VRAM）、64核心、503GB RAM**，相較這台開發機（純CPU）是數量級的升級。建置過程：
+
+1. **SSH 免密碼登入**：同樣受限於這個介面無法處理互動式密碼輸入，改產生本機 SSH 金鑰對（`~/.ssh/id_ed25519`），把公鑰貼進 server 的 `~/.ssh/authorized_keys`（使用者手動完成這步，因為需要先有一次可用的認證管道），之後全部操作走金鑰認證。
+2. **資料傳輸**：`data/*.h5`（134MB，三個資料庫）用 `rsync` 傳過去，因為這些檔案被 `.gitignore` 排除、不會跟著 `git clone` 走。
+3. **環境安裝的關鍵坑**：`requirements.txt` 原本只寫 `tensorflow==2.21.0`，裝起來後 `tf.config.list_physical_devices()` 只看得到 CPU——**單純 `pip install tensorflow` 不會帶 CUDA/cuDNN 相依套件**，要裝 `tensorflow[and-cuda]==2.21.0` 這個 extra 才會把 `nvidia-cudnn-cu12` 等一整套 NVIDIA 函式庫一起裝進 venv。但即使裝了這些套件，TensorFlow **仍然找不到**，因為這些 `.so` 檔案裝在 venv 的 `site-packages/nvidia/*/lib/` 底下，不在動態連結器的預設搜尋路徑上——最後手動把這些子目錄組成 `LD_LIBRARY_PATH` 並寫進 `.venv/bin/activate`（每次 `source` 這個 venv 就自動生效），才讓 `list_physical_devices()` 正確列出兩張 GPU。這整套流程值得記錄，因為之後在同一台 server 上開新 venv 大概率會重踩同樣的坑。
+4. 用 `python3 -m pytest tests/ -q` 確認 30 個測試在 server 上全過，才開始正式訓練。
+
+**E06（cnn_best）完整訓練結果（`runs/E06_cnn_best_20260816_1801/`）**：GPU 上單 epoch 只要 **2-4 秒**（CPU 上是 317 秒，約快 **100 倍**），訓練在 epoch 45（未到75上限）觸發 `GEModelSelection` 的 patience 早停——**這次是正常收尾，不是像 B.21 那樣被時間預算砍斷**。
+
+```
+train loss:     5.5417 → 5.5413（45 epochs幾乎完全打平，隨機基準是5.545）
+train accuracy: 全程卡在 0.51%（隨機基準0.39%）
+
+N_TGE  = None（未收斂）
+N_SR90 = None
+GE @ N=1000  = 157.77（比隨機基準127.5還糟，跟B.21的12-epoch版162.39幾乎沒差）
+SR1 @ N=1000 = 0.0000
+PI           = -0.0241 bits（幾乎零資訊，跟B.21的-0.0192幾乎沒差）
+```
+
+**這是本次調查最重要的釐清**：B.21 當時因為只跑了 12 個 epoch，無法排除「只是訓練不夠久」這個解釋；這次用完整訓練預算（GPU上跑滿到 patience 自然早停，等於把 RMSprop lr=1e-5 這個配方能發揮的空間都用盡了），結果**幾乎跟12-epoch版一模一樣**——45 epochs 的 loss 幾乎沒有比 12 epochs 的版本多降多少。**這確認了問題不是時間預算，是配方本身（RMSprop lr=1e-5，ASCAD原論文的超參數）在這個任務上就是學不太到東西**，需要跟 resnet/desync50/desync100 一樣的完整超參數調查（可能也需要 one-cycle 之類的訓練方法論介入，如同 E01 的經驗），不是「跑久一點」能解決的。
+
+**跨實驗現況更新**：連同 B.24-B.26，目前四個異架構/異資料情境（resnet、desync50、desync100、cnn_best）**全部確認需要獨立的完整超參數調查才可能解決，都不是資源/時間預算的問題**。有了這台GPU server後，這類調查的單次訓練成本大幅下降（cnn_best從5.3分鐘/epoch降到2-4秒/epoch），如果要投入，現在的條件比先前好上太多，值得認真考慮排進後續時程。
