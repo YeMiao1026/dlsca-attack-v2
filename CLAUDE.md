@@ -1789,3 +1789,13 @@ Phase 4（epoch數，其餘沿用Phase1-3贏家）：
 **乾淨的單調劑量反應曲線**——PSR 每增加，N_TGE／GE 都跟著單調惡化（對攻擊者而言），沒有出現非單調的異常點，符合預期。**`sigma_ratio≈1.5`（PSR≈0.134）是這條曲線上第一個讓攻擊者連 9000 條軌跡都攻不破的門檻**（GE@9000從<1跳到1.81，N_TGE從有限值變None）——這是後續評估 GAN 防禦時一個很自然的錨點：**GAN 防禦如果能用遠低於 PSR=0.134 的成本達到同等（甚至更好）的防禦效果，就是「效率更好、成本更低」這個論點的直接量化證據**。
 
 **PI 的量級也值得注意**：clean baseline 的 PI 是正常範圍（E01本身-0.4999，E02更是+0.1796），但加了噪訊防禦後 PI 隨 sigma_ratio 暴跌到 -38（3.0時），遠超過「單純沒資訊」的0——這是陷阱清單提過的「confidently wrong」現象在防禦情境下的放大版：模型沒被訓練成看過這種噪訊分佈，遇到噪訊後不僅預測不準，還會非常自信地押錯（softmax把機率質量集中在錯的類別上），PI公式對這種情況會給出遠低於0的懲罰值。這跟「單純變成均勻亂猜」（PI≈0）是質性不同的失效模式，值得在防禦端報告裡specifically點出來討論。
+
+### B.55 為防禦端補上自適應攻擊者（A1）介面：`01_train_attacker.py --profiling-traces`
+
+`dlsca-defense-v2`（防禦端子專案）正在依B11209017/方向.md的Route A建議投入自適應攻擊者情境（CLAUDE.md G4當初就預留了這個擴充點：「Stage B 的自適應攻擊者（重訓練、去噪、異架構、交替訓練）能在不改動核心的前提下加入」）。
+
+新增 `scripts/01_train_attacker.py --profiling-traces PATH`：讀一個跟`data.profiling_traces`同shape的`.npy`（例如防禦端`06_generate_defended_trainset.py`產出的`defended_profiling_traces.npy`）取代原本從`.h5`讀出來的乾淨軌跡，metadata（plaintext/key/masks）依然來自原始`.h5`不變——只換軌跡波形，不換標籤，跟`02_run_attack.py --traces`是同一種設計（`AscadData`是NamedTuple，用`._replace()`做替換，其餘split/label/train流程完全不動）。
+
+用合成的假資料（50000×700隨機int8陣列）跑過1-epoch的smoke test確認替換邏輯正確、不影響原有48個測試。這個flag本身不改變任何既有行為（不帶這個flag時完全等同原本的`01_train_attacker.py`）。
+
+新增 `configs/exp/E01_adaptive_A1_retrain.yaml`——跟`E01_baseline_clean.yaml`架構/超參數/seed完全相同（`max_traces`改成9000以對齊防禦端D01-D05的評估窗口），唯一差異變因是訓練資料是否被防禦過，供跟`E01_baseline_clean`（frozen攻擊者，防禦端D01-D05一直拿來當基準的那個）做直接對照。

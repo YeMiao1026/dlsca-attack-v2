@@ -1,0 +1,29 @@
+exp_id: E01_adaptive_A1_retrain
+description: >
+  同E01_baseline_clean的架構/超參數/seed，唯一差異是用 --profiling-traces
+  指向dlsca-defense-v2防禦後的Profiling_traces重訓練——模擬CLAUDE.md G4的
+  自適應攻擊者（A1）：攻擊者發現防禦部署後，重新訓練模型繞過。跟同一批
+  E01_baseline_clean的設定做對照，唯一變因是訓練資料是否被防禦過。
+
+seed: 42
+
+data: ascad_desync0
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000  # matches dlsca-defense-v2's D01-D05 evaluation window for direct comparison
+  n_runs: 100
+  seed: 1234

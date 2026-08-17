@@ -42,6 +42,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--config", required=True, help="path to an exp config, e.g. configs/exp/E01_baseline_clean.yaml")
     p.add_argument("--override", nargs="*", default=[], help="dotted.key=value overrides, e.g. train.epochs=5")
     p.add_argument("--runs-dir", default="runs", help="parent directory for run outputs")
+    p.add_argument("--profiling-traces", default=None,
+                    help="path to a .npy of alternative Profiling_traces (same shape as "
+                         "data.profiling_traces, e.g. dlsca-defense-v2's defended_profiling_traces.npy) "
+                         "to train on instead of the clean ASCAD Profiling_traces -- this is how Stage "
+                         "B's adaptive A1 attacker (CLAUDE.md G4) retrains against a deployed defense. "
+                         "Only the trace waveform is substituted; plaintext/key/masks metadata still "
+                         "comes from the .h5.")
     return p.parse_args()
 
 
@@ -94,6 +101,13 @@ def main() -> None:
     print(f"=== loading {cfg['data']['path']} ===")
     data = ascad_load(cfg["data"]["path"])
     target_byte = cfg["data"]["target_byte"]
+
+    if args.profiling_traces:
+        print(f"=== loading alternative profiling traces from {args.profiling_traces} (adaptive A1 retraining) ===")
+        alt_traces = np.load(args.profiling_traces)
+        if alt_traces.shape != data.profiling_traces.shape:
+            raise ValueError(f"--profiling-traces shape {alt_traces.shape} != expected {data.profiling_traces.shape}")
+        data = data._replace(profiling_traces=alt_traces)
 
     split = four_way(
         n_profiling=len(data.profiling_traces),
