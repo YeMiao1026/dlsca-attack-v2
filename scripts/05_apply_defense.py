@@ -28,7 +28,7 @@ import numpy as np
 import yaml
 
 from src.data.ascad import load as ascad_load
-from src.data.preprocess import gaussian_augment
+from src.data.preprocess import gaussian_augment, jamming_augment
 from src.data.split import load as load_split
 from src.metrics.perturbation import l2, linf, psr
 
@@ -36,9 +36,12 @@ from src.metrics.perturbation import l2, linf, psr
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Apply a defense to E and measure its cost")
     p.add_argument("--run", required=True, help="attacker run dir, used for data.path + split_indices.npz")
-    p.add_argument("--defense", required=True, choices=["gaussian"], help="defense method")
+    p.add_argument("--defense", required=True, choices=["gaussian", "jamming"], help="defense method")
     p.add_argument("--sigma-ratio", type=float, default=0.5,
                     help="gaussian defense: noise std as a multiple of each raw point's std across E")
+    p.add_argument("--max-shift", type=int, default=20,
+                    help="jamming defense: per-trace random time shift range in samples, "
+                         "[-max_shift, max_shift] (CLAUDE.md D08)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out-dir", default="defenses", help="parent directory for defense outputs")
     return p.parse_args()
@@ -69,13 +72,19 @@ def main() -> None:
         label = f"gaussian_sigma{args.sigma_ratio:g}"
         print(f"=== applying gaussian defense (sigma_ratio={args.sigma_ratio}) to {len(clean_e)} traces ===")
         defended_e = gaussian_augment(clean_e, sigma_ratio=args.sigma_ratio, seed=args.seed)
+        defense_params = {"sigma_ratio": args.sigma_ratio, "seed": args.seed}
+    elif args.defense == "jamming":
+        label = f"jamming_shift{args.max_shift}"
+        print(f"=== applying jamming defense (max_shift={args.max_shift}) to {len(clean_e)} traces ===")
+        defended_e = jamming_augment(clean_e, max_shift=args.max_shift, seed=args.seed)
+        defense_params = {"max_shift": args.max_shift, "seed": args.seed}
     else:
         raise ValueError(f"unknown defense: {args.defense!r}")
 
     print("=== computing cost metrics (PSR / L2 / Linf) vs. clean E ===")
     cost = {
         "defense": args.defense,
-        "params": {"sigma_ratio": args.sigma_ratio, "seed": args.seed} if args.defense == "gaussian" else {},
+        "params": defense_params,
         "source_run": str(run_dir),
         "n_traces": int(len(clean_e)),
         "psr": summarize("psr", psr(clean_e, defended_e)),

@@ -76,3 +76,24 @@ def gaussian_augment(traces: np.ndarray, sigma_ratio: float, seed: int) -> np.nd
     per_point_std = traces.std(axis=0)
     noise = rng.normal(0.0, 1.0, size=traces.shape).astype(np.float32) * (sigma_ratio * per_point_std)
     return traces + noise
+
+
+def jamming_augment(traces: np.ndarray, max_shift: int, seed: int) -> np.ndarray:
+    """Per-trace random time shift in [-max_shift, max_shift] (desync-style time-domain
+    perturbation, CLAUDE.md D08). Edge samples exposed by the shift are zero-padded, not
+    wrapped -- a real target's captured window doesn't circularly wrap its own past/future
+    samples. Stateless per call, one independent shift drawn per trace.
+    """
+    traces = np.asarray(traces, dtype=np.float32)
+    rng = np.random.default_rng(seed)
+    n, length = traces.shape
+    shifts = rng.integers(-max_shift, max_shift + 1, size=n)
+    out = np.zeros_like(traces)
+    for i, s in enumerate(shifts):
+        if s > 0:
+            out[i, s:] = traces[i, : length - s]
+        elif s < 0:
+            out[i, : length + s] = traces[i, -s:]
+        else:
+            out[i] = traces[i]
+    return out
