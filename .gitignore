@@ -1,5 +1,7 @@
 runs/
+runs_*/
 defenses/
+defenses_*/
 __pycache__/
 *.pyc
 *.h5

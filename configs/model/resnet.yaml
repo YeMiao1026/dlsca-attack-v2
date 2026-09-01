@@ -1,18 +1,46 @@
-# CLAUDE.md §6.1-6.2: 3 個殘差區塊 + GAP，約 30K 參數，Stage B transferability
+# CLAUDE.md §6.1-6.2: 3 個殘差區塊 + GAP，28,816 參數，Stage B transferability
 # 攻擊者（架構跟 cnn_light 不同，用來測試模型架構錯配時的可遷移性）。
+# src/models/resnet.py 已實作（ReLU + BN + he_normal，無上游參考碼，自行設計
+# 逼近 §6.1 的 ~30K 目標，見 CLAUDE.md 附錄 B.20）。
 #
-# src/models/resnet.py 目前仍是 stub（raise NotImplementedError），這份
-# config 先寫好骨架；真正能跑要等該模型實作完成。
+# train.* below is the result of the four-dimension sweep in CLAUDE.md 附錄
+# B.45-B.49 (max_lr → end_percentage → scale_percentage → epochs, each swept
+# to a local optimum): flat Adam lr=1e-3 gave GE@1000=123.27 (worse than the
+# random baseline 127.5); One-Cycle with a much more conservative peak
+# (5e-5, two orders of magnitude below cnn_light's) was the only setting that
+# produced a healthy, non-false-positive curve (GE@1000=101.17, GE@9000=51.32).
+#
+# NOTE (附錄 B.50 續): this recipe previously lived ONLY in --override flags on
+# the command line — this file still carried the untuned flat lr=1e-3, so a
+# bare `--config configs/exp/E07_resnet.yaml` reproduced the *pre-tuning*
+# baseline rather than 附錄 B.49's result. That drift violates §2 P1
+# (組態驅動，程式碼零修改) and is fixed here.
 model:
   name: resnet
 
 train:
   optimizer: adam
-  lr: 1.0e-3
+  # peak LR = lr * 100 * scale_percentage^2; with scale_percentage=0.1 that
+  # reduces to `lr` itself (see src/train/lr_schedule.py and the same note in
+  # cnn_light.yaml). Sweep: 5e-3 → 1e-3 → 2.5e-4 → 1e-4 → 5e-5 → 1e-5 was
+  # monotonically better down to 5e-5, then reversed at 1e-5 (附錄 B.46-B.47).
+  lr: 5.0e-5
   batch_size: 128
-  epochs: 100
+  epochs: 100         # swept 50 / 100 / 200 (附錄 B.49): 50 was indistinguishable, 200 was clearly worse — same "schedule length is tuned jointly, not a budget to raise" lesson as cnn_light.
+  lr_schedule: one_cycle
+  one_cycle:
+    end_percentage: 0.1     # 0.1 beat 0.2 and 0.35 (附錄 B.46-B.47)
+    scale_percentage: 0.1   # 0.1 beat 0.05 and 0.2 at fixed peak LR (附錄 B.48)
   selection:
     metric: n_tge
     eval_every: 5
     n_runs_val: 20
+    # NOTE: deliberately left at 6 (= 30 epochs), NOT raised to 100 the way
+    # cnn_light.yaml does, because 附錄 B.45-B.49's whole sweep ran at 6 —
+    # raising it here would silently make this file describe a recipe nobody
+    # has actually measured. That said, 6 is suspicious for a one-cycle run:
+    # 附錄 B.22 saw training early-stop at epoch 50 of 100, meaning the
+    # annealing phase the schedule depends on never executed. That is a
+    # candidate explanation for resnet's seed instability (附錄 S) and is
+    # tested separately rather than assumed — see 附錄 V.
     patience: 6
