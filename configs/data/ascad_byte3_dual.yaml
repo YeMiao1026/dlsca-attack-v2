@@ -1,0 +1,31 @@
+# ASCAD fixed-key, **byte 3**, DUAL-window extraction (1400 points).
+# Built by scripts/07_extract_window.py --windows 79352:80052 98513:99213.
+# See CLAUDE.md 附錄 B.66 for why a single window does not work here.
+#
+# The short version: an ID (mask-unknown) attack must combine two leakages —
+# the masked value Z^r and the mask r itself. Byte 2 is unusually convenient:
+# ANSSI's published window [45400,46100) happens to contain both (Z^r at window
+# point 517, r at 156 — only 361 raw points apart). For byte 3 they are 19,161
+# raw points apart (Z^r at 79702, r at 98863), so NO 700-point window can hold
+# both, and a single window centred on Z^r yields an attack that is impossible
+# in principle rather than merely hard.
+#
+# This file therefore concatenates a 700-point window around each POI. Verified
+# on A: masked value peak 15.4535 @ point 350, mask peak 17.4826 @ point 1050,
+# unmasked control 0.0110. Both leakages are in fact STRONGER than byte 2's
+# (6.3003 and 1.2737), so on signal quality alone byte 3 should be the easier
+# target.
+#
+# Caveat to state when comparing against E01: trace_len is 1400, not 700, so
+# cnn_light has 32,640 parameters here versus 18,640 on byte 2 (the flatten->FC
+# layer scales with input length). "Same recipe" is not literally the same model.
+data:
+  path: data/ASCAD_byte3_dual.h5
+  target_byte: 3
+  trace_len: 1400
+
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42

@@ -1,0 +1,36 @@
+# CLAUDE.md §8.2 extension: E10c = control for E10b.
+#
+# Identical to E10b in every respect except the target byte (2 instead of 3, with
+# byte 2's mask column 0 instead of byte 3's 1). Same 1400-point trace length,
+# same 32,640-parameter cnn_light, same recipe, seed and evaluation protocol.
+#
+# Purpose: E10b (byte 3) reached N_TGE=8 against E01's N_TGE=475 on byte 2. If
+# that gap were caused by the longer window and larger model rather than by the
+# byte itself, this control would also land near 8. If it lands near E01's 475,
+# the gap is a property of byte 3's leakage, not of the extraction.
+exp_id: E10c_byte2_wide_control
+description: E10b 的對照組——同樣 1400 點與模型規模，唯一變因是 byte（2 而非 3）
+
+seed: 42
+
+data: ascad_byte2_wide
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+  mask_index: 0   # byte 2's mask column
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

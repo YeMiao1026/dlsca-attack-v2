@@ -1,0 +1,27 @@
+# ASCAD fixed-key, **byte 3** — extracted by scripts/07_extract_window.py from
+# ATMega8515_raw_traces.h5, window [79352, 80052) located by
+# scripts/06_find_byte_poi.py. See CLAUDE.md 附錄 B.66.
+#
+# Byte 3 leaks ~34,000 raw points away from byte 2 (whose published window is
+# [45400, 46100)) — the S-box bytes are processed sequentially, so the offset is
+# large and was located by SNR scan rather than assumed.
+#
+# Two things worth noting versus byte 2:
+#   * mask_index is 1, not 0. The fixed-key file stores bytes 2..15 at mask
+#     indices 0..13 (bytes 0-1 are unmasked), so byte b sits at column b-2. That
+#     rule was inferred from byte 2 alone in 附錄 B.61; the POI scan verified it
+#     independently here (column 1 peaked at 16.0973 vs a 0.0483 noise floor).
+#   * the leakage is STRONGER than byte 2's: 00_inspect_data.py reports a
+#     masked-label SNR peak of 15.4535 (byte 2: 6.3003) against a 0.0110 control,
+#     a 1405x separation, concentrated in 8/700 points.
+data:
+  path: data/ASCAD_byte3.h5
+  target_byte: 3
+  trace_len: 700
+
+# Identical to ascad_desync0.yaml so byte is the only variable versus E01.
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42

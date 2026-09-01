@@ -1,0 +1,44 @@
+# CLAUDE.md §8.2 extension: E10 = the E01 recipe on a DIFFERENT BYTE of the same
+# campaign. Second part of the defense-side future-work item on dataset breadth
+# (the first was E09's variable-key check).
+#
+# The question: E01's recipe was tuned over ~15 runs against byte 2 of ASCAD
+# fixed-key desync0. It has since failed to transfer to desync50/100 (附錄
+# B.18/B.25-B.28), to resnet and cnn_best (附錄 B.50, B.56-B.60), and to the
+# variable-key database (附錄 B.64). Does it survive a change of *byte within the
+# same campaign* — same device, same acquisition, same masking scheme, same
+# trace width, only a different S-box output?
+#
+# This is the smallest perturbation of E01 attempted so far, so a failure here
+# would say something much stronger about the recipe's fragility than any of the
+# earlier ones; a success bounds the fragility to "across campaigns/architectures,
+# not across bytes".
+#
+# Everything is identical to E01_baseline_clean except data (byte 3) and
+# leakage.mask_index (1, byte 3's own mask column).
+exp_id: E10_byte3
+description: E01 配方原封不動套用到同一份採集的 byte 3（唯一變因是目標 byte）
+
+seed: 42
+
+data: ascad_byte3
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+  mask_index: 1   # byte 3's mask column; byte 2 uses 0 (see configs/data/ascad_byte3.yaml)
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

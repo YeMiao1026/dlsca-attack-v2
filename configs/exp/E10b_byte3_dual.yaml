@@ -1,0 +1,39 @@
+# CLAUDE.md §8.2 extension: E10b = the E01 recipe on byte 3, with a window that
+# actually contains the information an ID attack needs.
+#
+# Supersedes E10_byte3 (single 700-point window), whose failure turned out to be
+# an artefact of the extraction rather than a property of the recipe: that window
+# held the masked value but not the mask, making the attack impossible in
+# principle. E10 is kept in the repo as the record of that discovery — see
+# CLAUDE.md 附錄 B.66.
+#
+# Everything is identical to E01_baseline_clean except:
+#   * data (byte 3, dual window)
+#   * leakage.mask_index 1 (byte 3's own mask column, verified by scanning all 16)
+#   * data.trace_len 1400 (forced by needing two windows; not a tuning choice)
+exp_id: E10b_byte3_dual
+description: E01 配方套用到 byte 3，雙視窗擷取（含遮罩值與遮罩本身）
+
+seed: 42
+
+data: ascad_byte3_dual
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+  mask_index: 1
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

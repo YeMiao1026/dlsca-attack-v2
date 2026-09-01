@@ -136,6 +136,17 @@ def main() -> None:
     print(f"  unmasked-label SNR peak: {peak_unmasked:.4f} at point {poi_unmasked}  (control, should be ~0)")
     print(f"  points >= 50% of masked-label peak: {concentrated} / {a_traces.shape[1]} (should be a handful, not spread out)")
 
+    # Does the MASK ITSELF leak inside this window? A mask-unknown (ID) attack is
+    # second order — it must combine Z^r with r — so a window holding only Z^r
+    # makes the attack impossible in principle, whatever the model or
+    # hyperparameters. The masked-label check above is blind to this: it PASSED on
+    # a byte-3 window with a better SNR than byte 2's whose mask leaked 19,161 raw
+    # points away. See CLAUDE.md 附錄 B.66/B.67.
+    snr_mask_value = snr(a_traces, a_meta["masks"][:, mask_index].astype(np.uint8))
+    peak_mask, poi_mask = float(snr_mask_value.max()), int(snr_mask_value.argmax())
+    print(f"  mask-value     SNR peak: {peak_mask:.4f} at point {poi_mask}  "
+          f"(the mask r itself; needed for a mask-unknown ID attack)")
+
     # NICV is SNR's bounded ([0,1]) cousin (same inter-class-mean numerator,
     # normalized by total variance instead of mean within-class variance) —
     # printed alongside SNR as a second, differently-scaled cross-check, not
@@ -162,6 +173,24 @@ def main() -> None:
         print("     weak — re-check with ASCAD.h5 (desync0) and, if that passes cleanly, pass its")
         print("     mask index here via --mask-index instead of auto-detecting on desynced data.")
         sys.exit(1)
+
+    # Reported after PASS/FAIL rather than folded into it: a window can be
+    # perfectly healthy for ID_MASKED and for leakage assessment while being
+    # unusable for a mask-unknown ID attack.
+    if peak_mask >= SNR_SIGNIFICANCE_RATIO * max(peak_unmasked, 1e-6):
+        print(f"  mask value also leaks here ({peak_mask:.4f} vs control {peak_unmasked:.4f}): "
+              f"a mask-unknown ID attack is possible in this window.")
+    else:
+        print()
+        print(f"  WARNING: the mask itself does NOT leak in this window ({peak_mask:.4f} vs control "
+              f"{peak_unmasked:.4f}).")
+        print("     ID_MASKED and leakage assessment are fine here, but a mask-unknown ID attack")
+        print("     cannot succeed at ANY hyperparameters: it is second order and must combine")
+        print("     Z^r with r, and r is absent. This is exactly the trap in CLAUDE.md 附錄 B.66 —")
+        print("     a byte-3 window passed the check above with a better SNR than byte 2, yet its")
+        print("     mask leaked 19,161 raw points away, so the attack was impossible in principle.")
+        print("     Fix: locate the mask's own POI with scripts/06_find_byte_poi.py and extract a")
+        print("     second window around it (scripts/07_extract_window.py --windows A:B C:D).")
 
 
 if __name__ == "__main__":

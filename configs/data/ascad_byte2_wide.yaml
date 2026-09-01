@@ -1,0 +1,22 @@
+# ASCAD fixed-key, byte 2, widened to 1400 points ([45036, 46436)) — the CONTROL
+# for E10b. See CLAUDE.md 附錄 B.66/B.67.
+#
+# E10b attacks byte 3 with a 1400-point dual window and reaches N_TGE=8, versus
+# E01's N_TGE=475 on byte 2's 700-point ANSSI window. That gap conflates two
+# things: byte 3's intrinsically stronger leakage, AND the fact that E10b's
+# traces are 1400 points long (so cnn_light has 32,640 parameters rather than
+# 18,640). This config removes the second factor by giving byte 2 the same
+# 1400-point length and model size, leaving the byte as the only variable.
+#
+# Widening does not alter byte 2's leakage, only its context: measured on A,
+# Z^r peaks at 6.3003 and r at 1.2737, identical to the 700-point window.
+data:
+  path: data/ASCAD_byte2_wide.h5
+  target_byte: 2
+  trace_len: 1400
+
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42
