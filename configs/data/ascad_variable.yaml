@@ -1,0 +1,34 @@
+# ASCADv1 **variable-key** database (ATM_AES_v1_variable_key/ascad-variable.h5,
+# sha256 d834da6c…, matches the upstream Readme). Structurally different from the
+# fixed-key ASCAD.h5 in four ways that matter — see CLAUDE.md 附錄 B.61:
+#
+#   1. Profiling keys VARY (256 distinct values of key[2]); only the attack set
+#      has a fixed key (key[2]=34). src/data/labels.py already derives the label
+#      from each trace's own key, so this needs no code change — but it does make
+#      the task harder: the model must learn a key-independent leakage function
+#      instead of memorising one key's S-box row.
+#   2. trace_len is 1400, not 700 (a wider extraction window).
+#   3. masks has 18 columns, not 16, and is indexed differently: here masks[i] is
+#      byte i's mask directly (bytes 0-1 are unmasked, so those columns are
+#      constant 0), whereas the fixed-key file stores bytes 2-15 at indices 0-13.
+#      Hence mask_index 2 here vs 0 there — verified by scanning every column,
+#      not assumed.
+#   4. 200,000 profiling / 100,000 attack traces (vs 50,000 / 10,000).
+#
+# 00_inspect_data.py PASSES on this database: masked-label SNR peak 1.5641 at
+# point 1071 vs unmasked control 0.0114 (137x), concentrated in 5/1400 points,
+# desync field 0 throughout.
+data:
+  path: data/ascad-variable.h5
+  target_byte: 2
+  trace_len: 1400
+
+# Same A/V/D sizes as ascad_desync0.yaml on purpose: the first variable-key
+# experiment should differ from E01 in exactly one variable (the database), so
+# "variable key is harder" is not confounded with "we also gave it more data".
+# The larger profiling pool is exercised separately by the scaled-up config.
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42

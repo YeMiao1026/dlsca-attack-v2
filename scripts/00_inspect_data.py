@@ -98,12 +98,31 @@ def main() -> None:
         ranked = sorted(col_peaks, reverse=True)
         mask_index = int(np.argmax(col_peaks))
         print(f"  mask index selected: {mask_index}")
-        if len(ranked) > 1 and ranked[0] < 2 * ranked[1]:
-            print(f"  WARNING: winner ({ranked[0]:.4f}) is not clearly separated from the runner-up "
-                  f"({ranked[1]:.4f}) — likely desync smearing per-point SNR into noise, not a real "
-                  f"peak (pointwise SNR degrades badly under desync; large-kernel CNNs exist for this "
-                  f"reason, see CLAUDE.md §6.1). Re-run against ASCAD.h5 (desync0) to find the true "
-                  f"mask index, then pass it here via --mask-index instead of trusting this pick.")
+
+        # Trustworthiness is "does the winner clear the noise floor", NOT "does it
+        # beat the runner-up": ASCAD's masking legitimately puts real leakage in TWO
+        # columns — the target byte's own mask r_i, and the shared output mask r_out —
+        # so a winner/runner-up test fires on healthy databases whenever those two are
+        # comparable. Measured on A: ASCAD.h5 gives col0=6.3003 (byte 2) and
+        # col15=0.7671 (r_out); ascad-variable.h5 gives col2=1.5641 and col17=1.4391,
+        # nearly tied. Both are fine; only the desync databases genuinely fail, and
+        # there every column collapses to the ~0.011 floor together. The median over
+        # all columns is a robust estimate of that floor (at most two columns carry
+        # signal, so the median is always a noise column).
+        floor = float(np.median(col_peaks))
+        n_strong = int(np.sum(np.asarray(col_peaks) >= 10.0 * floor))
+        if floor <= 0 or ranked[0] < 10.0 * floor:
+            print(f"  WARNING: winner ({ranked[0]:.4f}) does not clearly clear the per-column noise "
+                  f"floor (median {floor:.4f}) — likely desync smearing per-point SNR into noise "
+                  f"rather than a real peak (pointwise SNR degrades badly under desync; large-kernel "
+                  f"CNNs exist for this reason, see CLAUDE.md §6.1). Re-run against a desync0 "
+                  f"database to find the true mask index, then pass it here via --mask-index "
+                  f"instead of trusting this pick.")
+        elif n_strong > 1:
+            strong = [(i, round(float(p), 4)) for i, p in enumerate(col_peaks) if p >= 10.0 * floor]
+            print(f"  note: {n_strong} columns clear the noise floor (median {floor:.4f}): {strong} "
+                  f"— expected for ASCAD (target byte's own mask plus the shared r_out, which leak "
+                  f"at different points). The argmax is the target byte's mask; see CLAUDE.md 附錄 B.61.")
 
     masked = unmasked ^ a_meta["masks"][:, mask_index].astype(np.uint8)
 

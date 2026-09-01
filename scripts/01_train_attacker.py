@@ -160,6 +160,17 @@ def main() -> None:
     y_a = build_labels(meta_a, leakage_model, target_byte, mask_index=mask_index)
     y_v = build_labels(meta_v, leakage_model, target_byte, mask_index=mask_index)
 
+    # data.trace_len only feeds the model's input_dim — nothing else validates it
+    # against the file, so a stale value would surface as an opaque Keras shape
+    # error deep in fit(). Cheap to catch here, and easy to get wrong now that the
+    # databases no longer all share one length (ASCAD.h5 is 700, ascad-variable.h5
+    # is 1400).
+    if x_a.shape[1] != cfg["data"]["trace_len"]:
+        raise ValueError(
+            f"data.trace_len={cfg['data']['trace_len']} does not match the loaded traces "
+            f"({x_a.shape[1]} points in {cfg['data']['path']}). Fix the data config."
+        )
+
     print(f"=== building model {cfg['model']['name']!r} ===")
     model = build_model(cfg["model"]["name"], input_dim=cfg["data"]["trace_len"],
                          n_classes=cfg["leakage"]["n_classes"])
