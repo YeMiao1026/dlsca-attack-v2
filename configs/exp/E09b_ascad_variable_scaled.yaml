@@ -1,0 +1,54 @@
+# E09b = E09 with the profiling pool actually used at its native scale.
+#
+# Why this exists: E09 deliberately holds A/V/D at E01's sizes (30k/5k/15k) so
+# that "variable key" is the single changed variable. But that leaves a
+# confound in the opposite direction — if E09 does poorly, it could be because
+# variable-key profiling is genuinely harder, OR simply because 30,000 traces
+# are too few to learn a key-independent leakage function when the fixed-key
+# task could partly get by on memorisation. The two are not separable from E09
+# alone.
+#
+# E09b resolves that by scaling A/V/D to use the variable-key database's real
+# capacity (its profiling set holds 200,000 traces, 4x the fixed-key file).
+# Everything else — recipe, seed, leakage model, evaluation protocol — is
+# unchanged from E09. So:
+#
+#   E09 poor + E09b good  -> the limit was data volume, not the variable key
+#   E09 poor + E09b poor  -> variable-key profiling is genuinely the harder task
+#   E09 good              -> E09b is a bonus data point on scaling, nothing more
+#
+# Note the D (defender) split is scaled too, not just A: the defense-side
+# sub-project needs a proportionate reserve if it ever moves to this database,
+# and CLAUDE.md §5.2 stage 1 requires D to be cut up front even when unused.
+exp_id: E09b_ascad_variable_scaled
+description: ASCADv1 variable-key，A/V/D 放大到資料庫原生規模（分離「金鑰可變」與「資料量不足」兩個混淆變因）
+
+seed: 42
+
+data: ascad_variable
+model: cnn_light
+
+split:
+  n_attacker: 120000
+  n_val: 20000
+  n_defender: 60000   # 120000 + 20000 + 60000 = 200000, the full profiling set
+  seed: 42
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+  mask_index: 2
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

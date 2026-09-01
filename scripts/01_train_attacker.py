@@ -85,7 +85,7 @@ def write_train_history_csv(rows: list[dict], path: Path) -> None:
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config, overrides=args.override)
-    set_global_seed(cfg["seed"])
+    set_global_seed(cfg["seed"], deterministic_ops=cfg.get("deterministic", True))
 
     # PID suffix: even second-precision timestamps collided when two runs were
     # launched within the same second, racing on the same run_dir/model.keras

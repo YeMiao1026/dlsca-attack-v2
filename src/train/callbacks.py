@@ -30,7 +30,8 @@ class GEModelSelection(keras.callbacks.Callback):
     def __init__(self, x_val, meta_val, target_byte: int, eval_every: int = 5,
                  n_runs_val: int = 20, patience: int = 6, checkpoint_path: str = "best.keras",
                  max_traces: int = 1000, seed: int = 0, verbose: bool = True,
-                 leakage_model: LeakageModel = "ID", mask: np.ndarray | None = None):
+                 leakage_model: LeakageModel = "ID", mask: np.ndarray | None = None,
+                 y_val: np.ndarray | None = None):
         super().__init__()
         self.x_val = x_val
         self.plaintexts = meta_val["plaintext"]
@@ -44,8 +45,28 @@ class GEModelSelection(keras.callbacks.Callback):
         self.verbose = verbose
         self.leakage_model = leakage_model
         self.mask = mask
+        self.y_val = y_val
 
-        self.correct_key = get_correct_key(meta_val, target_byte)
+        # Key recovery accumulates per-trace scores under the assumption that every
+        # trace was produced with the SAME key. That holds on the fixed-key
+        # databases, but NOT on ASCADv1-variable, whose profiling set (and therefore
+        # V) carries ~256 distinct keys — there, get_correct_key would silently
+        # return trace 0's key and score every other trace against the wrong
+        # hypothesis (measured: only 0.54% of V actually has it), making the whole
+        # GE preview meaningless and checkpoint selection effectively random.
+        # See CLAUDE.md 附錄 B.62.
+        keys = np.asarray(meta_val["key"][:, target_byte])
+        self.variable_key = bool(np.unique(keys).size > 1)
+        if self.variable_key:
+            if y_val is None:
+                raise ValueError(
+                    "V holds multiple keys (variable-key database), so GE cannot be computed on it. "
+                    "GEModelSelection needs y_val to fall back to the key-independent "
+                    "mean-true-class-rank criterion."
+                )
+            self.correct_key = None
+        else:
+            self.correct_key = get_correct_key(meta_val, target_byte)
         self.best_n_tge: int | None = None
         self.best_final_ge: float | None = None
         self.evals_without_improvement = 0
@@ -68,19 +89,33 @@ class GEModelSelection(keras.callbacks.Callback):
             return
 
         probs = predict.run(self.model, self.x_val)
-        sc = scores.build(probs, self.plaintexts, self.target_byte,
-                           leakage_model=self.leakage_model, mask=self.mask)
-        ranks = keyrank.evaluate(sc, self.correct_key, n_runs=self.n_runs_val,
-                                  max_traces=self.max_traces, seed=self.seed)
-        ge_curve = keyrank.ge(ranks)
-        n_tge = keyrank.n_tge(ge_curve)
-        final_ge = float(ge_curve[-1])
+
+        if self.variable_key:
+            # Key-independent stand-in for GE: the mean rank of each trace's own
+            # true class, using that trace's own known key. Same "number of
+            # candidates strictly ahead of the truth" convention as keyrank, so the
+            # scale matches (0 = perfect, ~127.5 = random for 256 classes). It
+            # measures the per-trace discriminative power that drives GE, without
+            # needing all traces to share a key.
+            true_p = probs[np.arange(len(self.y_val)), self.y_val][:, None]
+            metric = float((probs > true_p).sum(axis=1).mean())
+            n_tge, final_ge = None, metric
+            label = "mean_true_rank"
+        else:
+            sc = scores.build(probs, self.plaintexts, self.target_byte,
+                               leakage_model=self.leakage_model, mask=self.mask)
+            ranks = keyrank.evaluate(sc, self.correct_key, n_runs=self.n_runs_val,
+                                      max_traces=self.max_traces, seed=self.seed)
+            ge_curve = keyrank.ge(ranks)
+            n_tge = keyrank.n_tge(ge_curve)
+            final_ge = float(ge_curve[-1])
+            label = "final_GE"
         self.history.append({"epoch": epoch_number, "n_tge": n_tge, "ge": final_ge})
 
         improved = self._is_better(n_tge, final_ge)
         if self.verbose:
             tag = " (new best, saving)" if improved else ""
-            print(f"\n[GEModelSelection] epoch {epoch_number}: N_TGE={n_tge} final_GE={final_ge:.2f}{tag}")
+            print(f"\n[GEModelSelection] epoch {epoch_number}: N_TGE={n_tge} {label}={final_ge:.2f}{tag}")
 
         if improved:
             self.best_n_tge = n_tge

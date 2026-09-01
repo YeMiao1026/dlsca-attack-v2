@@ -1,5 +1,11 @@
 seed: 42
 
+# Pin cuDNN/cuBLAS algorithm choice and reduction order. Seeding the RNGs alone
+# does not make GPU training reproducible — two identical E01 runs on the lab
+# server diverged from epoch 1 — which breaks §11's "two executions produce
+# identical metrics.json". Costs some throughput; set false to trade that back.
+deterministic: true
+
 preprocess:
   method: standardize_per_point
   fit_on: attacker

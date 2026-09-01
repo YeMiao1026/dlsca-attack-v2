@@ -92,6 +92,7 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
         seed=cfg.get("seed", 0),
         leakage_model=leakage_model,
         mask=mask,
+        y_val=y_v,
     )
 
     callbacks: list[keras.callbacks.Callback] = [ge_callback]
