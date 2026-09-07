@@ -1,0 +1,25 @@
+# Real ChipWhisperer captures (STM32, unprotected software AES, fixed key
+# 2b7e151628aed2a6abf7158809cf4f3c), imported by scripts/08_import_cw.py.
+# See CLAUDE.md 附錄 B.68.
+#
+# This is the project's first non-ASCAD, physically-measured database. Two
+# properties differ from every other config here and matter when reading results:
+#
+#   * UNPROTECTED. There is no masking, so Sbox[p^k] leaks at first order
+#     (measured ID-SNR 11.99 at point 1342 against a 0.0481 noise floor, 249x).
+#     On masked ASCAD that same quantity is the ~0.011 control. Attacks are
+#     therefore expected to be far easier here than any ASCAD result, and the
+#     two are not comparable as attack difficulty — the value is that defenses
+#     can be measured against real acquisitions instead of a prepackaged file.
+#   * Small. 10,000 traces total versus ASCAD's 60,000, so the splits below are
+#     correspondingly smaller. That is a property of the capture campaign.
+data:
+  path: data/CW_stm32.h5
+  target_byte: 0
+  trace_len: 1500
+
+split:
+  n_attacker: 6000
+  n_val: 1000
+  n_defender: 1000   # kept for the defense-side sub-project, per §5.2 stage 1
+  seed: 42

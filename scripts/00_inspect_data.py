@@ -88,6 +88,36 @@ def main() -> None:
     key_byte = a_meta["key"][:, args.target_byte].astype(np.uint8)
     unmasked = AES_SBOX[plaintext_byte ^ key_byte]
 
+    # An unprotected implementation has no masks at all (the CW captures store a
+    # zero-filled column purely to keep the file layout uniform). There the whole
+    # masked-vs-unmasked logic is inverted: Sbox[p^k] is supposed to leak directly,
+    # and that is what must be checked. See CLAUDE.md 附錄 B.68.
+    masks_all_constant = all(len(np.unique(a_meta["masks"][:, i])) == 1
+                              for i in range(a_meta["masks"].shape[1]))
+    if masks_all_constant:
+        snr_id = snr(a_traces, unmasked)
+        peak_id, poi_id = float(snr_id.max()), int(snr_id.argmax())
+        floor_id = float(np.median(snr_id))
+        conc_id = int((snr_id >= 0.5 * peak_id).sum())
+        print("  every masks column is constant -> UNPROTECTED implementation (no masking).")
+        print("  Checking the ID label Sbox[p^k] directly, which must leak here (on a masked")
+        print("  device this same quantity is the ~0 control instead).")
+        print(f"  ID-label      SNR peak: {peak_id:.4f} at point {poi_id}")
+        print(f"  per-point median (noise floor): {floor_id:.4f}")
+        print(f"  points >= 50% of peak: {conc_id} / {a_traces.shape[1]}")
+        print()
+        print("=== pass/fail check ===")
+        ok = peak_id > SNR_SIGNIFICANCE_RATIO * max(floor_id, 1e-6)
+        print(f"  ID-label SNR peak >= {SNR_SIGNIFICANCE_RATIO:g}x the noise floor: "
+              f"{'PASS' if ok else 'FAIL'} ({peak_id:.4f} vs {floor_id:.4f})")
+        if not ok:
+            print("  -> the device does not leak the S-box output at first order, or the "
+                  "plaintext/key metadata does not line up with the traces.")
+            sys.exit(1)
+        print("  note: a first-order attack applies here; ID_MASKED and the mask-leakage")
+        print("        check below are not meaningful on an unprotected target.")
+        return
+
     if args.mask_index is not None:
         mask_index = args.mask_index
         print(f"  mask index: {mask_index} (given via --mask-index, auto-detection skipped)")

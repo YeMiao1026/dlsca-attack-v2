@@ -1,0 +1,38 @@
+# CLAUDE.md §8.2 extension: E11 = baseline attacker on REAL hardware captures.
+#
+# Purpose: give the defense evaluations a target that was physically measured
+# rather than downloaded. Every defense result so far (D01-D08, D04+jamming) was
+# established against an attacker trained on ASCAD; this establishes the
+# equivalent baseline on the team's own ChipWhisperer acquisitions so the same
+# defenses can be applied to real traces via scripts/05_apply_defense.py.
+#
+# The recipe is E01's, unchanged, for the same single-variable discipline used
+# by E09 (variable key) and E10b (byte 3). Note the target is unprotected, so a
+# low N_TGE here is expected and is NOT evidence that the recipe is better than
+# on ASCAD — it reflects an easier device.
+exp_id: E11_cw_hardware
+description: 真實 ChipWhisperer 採集（STM32，未加遮罩 AES）上的基準攻擊者
+
+seed: 42
+
+data: cw_stm32
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID          # no masking on this device, so ID is the only meaningful model
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  # the attack set holds 2000 traces here, not ASCAD's 10000
+  max_traces: 2000
+  n_runs: 100
+  seed: 1234
