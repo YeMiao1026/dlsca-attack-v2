@@ -167,9 +167,19 @@ python3 scripts/03_evaluate.py --run runs/E01_baseline_clean_20260816_1302 --ove
 
 ```bash
 python3 scripts/04_make_report.py
+python3 scripts/04_make_report.py --runs-dir runs runs_byte3 runs_cw runs_variable
 ```
 
-掃描 `runs/` 底下所有含 `metrics.json` 的目錄，幫每個 run 產生 `figures/ge_curve.png`（GE隨N變化，含25/75百分位陰影帶）跟 `figures/sr_curve.png`，並把所有 run 的關鍵指標彙整成 `reports/comparison.md` / `reports/comparison.tex`，可以直接貼進期末報告。
+掃描指定目錄底下所有含 `metrics.json` 的 run，幫每個 run 產生 `figures/ge_curve.png`（GE隨N變化，含25/75百分位陰影帶）跟 `figures/sr_curve.png`，並把所有 run 的關鍵指標彙整成 `reports/comparison.md` / `reports/comparison.tex`，可以直接貼進期末報告。`--runs-dir` 可以一次給多個目錄，合成同一張表（分開寫會把表格丟進 `runs*/`，被 `.gitignore` 排除）。
+
+### 報告用結果圖（`09_make_figures.py`）
+
+```bash
+python3 scripts/09_make_figures.py --with-snr        # 全部 14 張
+python3 scripts/09_make_figures.py --only F13        # 只重畫其中一張
+```
+
+`04_make_report.py` 產的是「每次執行一張」的工作用圖（100+ 張，跟著 `runs/` 被 gitignore）。這支腳本產的是另一半：**跨實驗、帶論點的結果圖**，寫進 `reports/figures/`，跟引用它們的文字一起進版控。圖上每條曲線都是從 `metrics.json` / `train_history.csv` / `cost_metrics.json` 讀回來的，不從 CLAUDE.md 手抄，所以圖不會跟產生它的那次執行脫節；兩個例外（F05、F12 左圖從 `.h5` 重算 SNR；F11 右圖的 SNR 峰值是轉錄值）已在圖上與腳本內標明。清單見 `reports/figures/README.md`。
 
 ### 平行跑多組超參數（GPU 上很划算）
 

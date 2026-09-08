@@ -25,7 +25,10 @@ DEFAULT_COLUMNS = ["run_dir", "exp_id", "n_tge", "n_sr90", "ge_final", "sr1_fina
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build cross-experiment report (CLAUDE.md §8.3)")
-    p.add_argument("--runs-dir", default="runs", help="parent directory containing {exp_id}_{timestamp}/ runs")
+    p.add_argument("--runs-dir", nargs="+", default=["runs"],
+                   help="one or more parent directories containing {exp_id}_{timestamp}/ runs. "
+                        "Pass several to build a single table spanning them — writing one table "
+                        "per directory instead would drop it inside runs*/, which .gitignore excludes.")
     p.add_argument("--out-dir", default="reports", help="where to write comparison.md / comparison.tex")
     p.add_argument("--columns", nargs="*", default=DEFAULT_COLUMNS, help="metrics.json keys to include as columns")
     return p.parse_args()
@@ -45,17 +48,22 @@ def make_figures(runs_dir: Path, row: dict) -> None:
 
 def main() -> None:
     args = parse_args()
-    runs_dir = Path(args.runs_dir)
 
-    rows = collect_metrics(runs_dir)
+    rows = []
+    for d in args.runs_dir:
+        runs_dir = Path(d)
+        found = collect_metrics(runs_dir)
+        for row in found:
+            make_figures(runs_dir, row)
+            # Disambiguate rows once the table spans more than one parent.
+            if len(args.runs_dir) > 1:
+                row["run_dir"] = f"{runs_dir.name}/{row['run_dir']}"
+        print(f"=== {runs_dir}: {len(found)} run(s), figures written ===")
+        rows += found
+
     if not rows:
-        print(f"no metrics.json found under {runs_dir}/ — run 03_evaluate.py on a run first")
+        print(f"no metrics.json found under {', '.join(args.runs_dir)} — run 03_evaluate.py first")
         return
-
-    print(f"=== found {len(rows)} run(s) with metrics.json ===")
-    for row in rows:
-        make_figures(runs_dir, row)
-        print(f"  {row['run_dir']}: figures written")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
