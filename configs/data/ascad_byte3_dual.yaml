@@ -1,14 +1,24 @@
 # ASCAD fixed-key, **byte 3**, DUAL-window extraction (1400 points).
 # Built by scripts/07_extract_window.py --windows 79352:80052 98513:99213.
-# See CLAUDE.md 附錄 B.66 for why a single window does not work here.
+# ⚠ See CLAUDE.md 附錄 B.74: 附錄 B.66's stated reason for this dual window
+# ("no single window can hold both shares") was WRONG and has been retracted.
 #
 # The short version: an ID (mask-unknown) attack must combine two leakages —
-# the masked value Z^r and the mask r itself. Byte 2 is unusually convenient:
-# ANSSI's published window [45400,46100) happens to contain both (Z^r at window
-# point 517, r at 156 — only 361 raw points apart). For byte 3 they are 19,161
-# raw points apart (Z^r at 79702, r at 98863), so NO 700-point window can hold
-# both, and a single window centred on Z^r yields an attack that is impossible
-# in principle rather than merely hard.
+# the masked value Z^r and the mask r itself, so a window holding only one of
+# them cannot work whatever the model does. THIS window pair was built on the
+# belief that byte 3's two shares are 19,161 raw points apart and therefore
+# cannot share a 700-point window. That belief was wrong: Egger et al. (COSADE
+# 2022, App. A.1) publish a per-byte window for every byte, and inside their
+# byte-3 window [32906,33606) both shares are present (Z^r 8.56, r 1.25 —
+# measured, 附錄 B.74). Our [79352,80052) sits past the END of the whole masked
+# SubBytes region (all 16 windows end by raw 50265), where only the residual
+# masked value survives and the mask does not leak at all (0.0392, noise).
+#
+# The file is kept because the measurement it produces is still the best one:
+# Egger's single window reaches only GE@9000 = 1.85-11.71 over three seeds
+# (E10d), whereas this dual window reaches N_TGE = 8 — the dual window pairs a
+# much stronger residual Z^r (16.23) with a strong mask leak, not because a
+# single window is impossible.
 #
 # This file therefore concatenates a 700-point window around each POI. Verified
 # on A: masked value peak 15.4535 @ point 350, mask peak 17.4826 @ point 1050,

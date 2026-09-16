@@ -1,5 +1,6 @@
 # ASCAD fixed-key, byte 2, widened to 1400 points ([45036, 46436)) — the CONTROL
-# for E10b. See CLAUDE.md 附錄 B.66/B.67.
+# for E10b. See CLAUDE.md 附錄 B.66/B.67, and 附錄 B.74 for the retraction of
+# B.66's "byte 2 is a lucky special case" reading (this control is unaffected).
 #
 # E10b attacks byte 3 with a 1400-point dual window and reaches N_TGE=8, versus
 # E01's N_TGE=475 on byte 2's 700-point ANSSI window. That gap conflates two

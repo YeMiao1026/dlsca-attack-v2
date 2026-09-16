@@ -170,8 +170,13 @@ def main() -> None:
     # second order — it must combine Z^r with r — so a window holding only Z^r
     # makes the attack impossible in principle, whatever the model or
     # hyperparameters. The masked-label check above is blind to this: it PASSED on
-    # a byte-3 window with a better SNR than byte 2's whose mask leaked 19,161 raw
-    # points away. See CLAUDE.md 附錄 B.66/B.67.
+    # a byte-3 window with a better SNR than byte 2's, in which the mask did not
+    # leak at all (mask-value SNR 0.0392, i.e. noise). That window was picked by
+    # taking the whole-trace argmax of the masked label, which landed outside the
+    # masked-SubBytes region entirely — see CLAUDE.md 附錄 B.74, which retracts
+    # 附錄 B.66's "no 700-point window can hold both shares" reading. The check
+    # below is still the right one; what was missing is applying it when CHOOSING
+    # the window, not only after extracting it.
     snr_mask_value = snr(a_traces, a_meta["masks"][:, mask_index].astype(np.uint8))
     peak_mask, poi_mask = float(snr_mask_value.max()), int(snr_mask_value.argmax())
     print(f"  mask-value     SNR peak: {peak_mask:.4f} at point {poi_mask}  "

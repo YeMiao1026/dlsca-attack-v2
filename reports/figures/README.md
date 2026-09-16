@@ -4,7 +4,7 @@
 每張圖的每一條曲線與每一個數字都是從 `runs*/metrics.json`、`runs*/train_history.csv`
 或 `defenses*/cost_metrics.json` 讀回來的，不是從 CLAUDE.md 手抄，所以圖不會跟產生它的
 那次執行脫節。兩個例外已在圖上與腳本 docstring 標明：F05 與 F12 左圖是從 `.h5` 重算 SNR
-（SNR 是資料的性質，不屬於任何一次 run）；F11 右圖的四個 SNR 峰值是 附錄 B.66/B.67 的量測值
+（SNR 是資料的性質，不屬於任何一次 run）；F11 右圖的六個 SNR 峰值是 附錄 B.74 的量測值
 （byte 3 的資料庫在 GPU server 上，不在本機 `data/`）。
 
 | 圖 | 內容 | 對應附錄 |
@@ -19,7 +19,7 @@
 | F08 | cnn_best 六次嘗試全部落在同一個雜訊帶內 | B.50 |
 | F09 | resnet 十個種子＋patience 對照＋1-epoch 對照 | B.57–B.59 |
 | F10 | variable-key：管線正確，ID 任務本身學不起來 | B.64、B.65 |
-| F11 | byte 2 vs byte 3：ID 攻擊是二階，視窗要同時裝下遮罩值與遮罩 | B.66、B.67 |
+| F11 | 抽取視窗的比較：ID 攻擊是二階，視窗要同時裝下遮罩值與遮罩；我們原本挑的 byte 3 視窗只有其中一個 | B.66、B.67、**B.74（訂正）** |
 | F12 | E11 ChipWhisperer 基準：未防護實作單條軌跡即破 | B.68 |
 | F13 | 硬體上的防禦劑量反應曲線，以及 PSR 作為成本指標的失效 | B.68、B.69 |
 | F14 | 高斯噪訊防禦基準線（GAN 防禦要打敗的對象） | C.3 |

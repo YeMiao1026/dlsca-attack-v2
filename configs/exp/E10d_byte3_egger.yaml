@@ -1,0 +1,48 @@
+# CLAUDE.md §8.2 extension: E10 = the E01 recipe on a DIFFERENT BYTE of the same
+# campaign. Second part of the defense-side future-work item on dataset breadth
+# (the first was E09's variable-key check).
+#
+# The question: E01's recipe was tuned over ~15 runs against byte 2 of ASCAD
+# fixed-key desync0. It has since failed to transfer to desync50/100 (附錄
+# B.18/B.25-B.28), to resnet and cnn_best (附錄 B.50, B.56-B.60), and to the
+# variable-key database (附錄 B.64). Does it survive a change of *byte within the
+# same campaign* — same device, same acquisition, same masking scheme, same
+# trace width, only a different S-box output?
+#
+# This is the smallest perturbation of E01 attempted so far, so a failure here
+# would say something much stronger about the recipe's fragility than any of the
+# earlier ones; a success bounds the fragility to "across campaigns/architectures,
+# not across bytes".
+#
+# Everything is identical to E01_baseline_clean except data (byte 3) and
+# leakage.mask_index (1, byte 3's own mask column).
+exp_id: E10d_byte3_egger
+description: >
+  byte 3，改用 Egger et al.（COSADE 2022）附錄 A.1 表 4 公布的單一 700 點視窗
+  [32906, 33606)。附錄 B.66 主張 byte 3 的兩個 share 相距 19,161 點、任何 700 點
+  視窗都裝不下；實測顯示那是我們自己的視窗挑錯（掃到 raw 79702 這個只有遮罩值、
+  沒有遮罩的較強再現位置）。本實驗直接檢驗單一視窗能不能成功。
+
+seed: 42
+
+data: ascad_byte3_egger
+model: cnn_light
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+  mask_index: 1   # byte 3's mask column; byte 2 uses 0 (see configs/data/ascad_byte3.yaml)
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

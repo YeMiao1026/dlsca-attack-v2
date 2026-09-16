@@ -15,11 +15,10 @@ labelled as such:
 
   * F05 recomputes SNR from the h5 databases, because SNR is a property of the
     data rather than of any run.
-  * F11's right panel carries the four SNR peaks measured in CLAUDE.md 附錄
-    B.66/B.67. Those are transcribed rather than recomputed: they come from the
-    byte-3 databases, which live on the GPU server and are not part of the
-    local data/ directory. Recompute them with scripts/06_find_byte_poi.py if
-    the numbers ever need re-deriving.
+  * F11's right panel carries six SNR peaks measured on the raw traces by
+    check_egger_windows.py (CLAUDE.md 附錄 B.74). Those are transcribed rather
+    than recomputed: the raw 6 GB capture lives on the GPU server, not in the
+    local data/ directory.
 
 Usage (run from repo root):
     python scripts/09_make_figures.py                 # everything except F05
@@ -31,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import glob
 import json
 import os
 import sys
@@ -512,42 +512,71 @@ def f10_variable_key():
     save(fig, "F10_variable_key", "variable-key E09/E09b + diagnostic (附錄 B.64/B.65)")
 
 
+def _run_with_seed(pattern: str, seed: int) -> str:
+    """Resolve a pid-suffixed run directory by the seed in its config snapshot."""
+    for d in sorted(glob.glob(pattern)):
+        snap = Path(d) / "config_snapshot.yaml"
+        if snap.exists() and any(l.strip() == f"seed: {seed}" for l in snap.read_text().splitlines()):
+            return d.rstrip("/")
+    raise FileNotFoundError(f"{pattern} with seed {seed}")
+
+
 def f11_byte_comparison():
-    """附錄 B.66/B.67: byte 2 is both uniquely convenient and unusually hard."""
+    """附錄 B.66/B.67, corrected by 附錄 B.74.
+
+    The original version of this figure argued that byte 2 was a lucky special
+    case whose two second-order shares happen to share one window. That reading
+    was retracted: Egger et al. (COSADE 2022) publish a per-byte window for every
+    byte, and byte 3's contains both shares. What actually went wrong was window
+    SELECTION — a whole-trace argmax of the masked label landed past the end of
+    the masked SubBytes region, where only the residual masked value survives.
+    """
     entries = [
+        ("runs/E01_baseline_clean_20260816_1302", "byte 2 · ANSSI 700 pts", C_MID),
+        (_run_with_seed("runs_byte3_egger/E10d_byte3_egger_*/", 42),
+         "byte 3 · Egger 700 pts (seed 42)", C_ALT),
         ("runs_byte3/E10b_byte3_dual_20260901_210700_2080071",
-         "byte 3, dual window 1400 pts", C_GOOD),
-        ("runs/E01_baseline_clean_20260816_1302", "byte 2, ANSSI window 700 pts", C_MID),
+         "byte 3 · our dual window 1400 pts", C_GOOD),
         ("runs_byte3/E10c_byte2_wide_control_20260901_211734_2103231",
-         "byte 2, widened to 1400 pts (control)", C_GREY),
+         "byte 2 · widened to 1400 pts (control)", C_GREY),
         ("runs_byte3/E10_byte3_20260901_205458_2055720",
-         "byte 3, single window — mask not in window", C_BAD),
+         "byte 3 · our 700 pts — mask absent", C_BAD),
     ]
-    fig, (ax, axb) = plt.subplots(1, 2, figsize=(11.5, 4.2), gridspec_kw={"width_ratios": [1.5, 1]})
+    fig, (ax, axb) = plt.subplots(1, 2, figsize=(12.5, 4.4), gridspec_kw={"width_ratios": [1.45, 1]})
     for run, label, colour in entries:
         m = metrics(run)
         curve = np.asarray(m["ge"])
-        tail = f"N_TGE={m['n_tge']}" if m.get("n_tge") else "never <1"
+        tail = f"N_TGE={m['n_tge']}" if m.get("n_tge") else f"GE@{len(curve)}={curve[-1]:.2f}"
         ax.plot(np.arange(1, len(curve) + 1), curve, color=colour, lw=1.7, label=f"{label}   {tail}")
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_ylim(0.05, 300)
-    _ge_axes(ax, "Same recipe, same seed — only the target byte differs")
-    ax.legend(loc="lower left")
+    _ge_axes(ax, "Same recipe, same seed — only the extraction window differs")
+    ax.legend(loc="lower left", fontsize=7.5)
 
-    # The two leakages an ID attack must combine, measured in 附錄 B.66/B.67.
-    names = ["byte 2\nmasked value  Z^r", "byte 2\nthe mask  r", "byte 3\nmasked value  Z^r", "byte 3\nthe mask  r"]
-    vals = [6.3003, 1.2737, 15.4535, 17.4826]
-    axb.bar(range(4), vals, color=[C_MID, C_MID, C_GOOD, C_GOOD], width=0.6)
-    axb.set_xticks(range(4)); axb.set_xticklabels(names, fontsize=7)
-    axb.set_ylabel("SNR peak")
-    axb.set_title("Why: byte 2's mask leaks 13.7x weaker")
-    axb.text(0.5, -0.28, "SNR peaks measured on the raw captures, not read from a run",
-             transform=axb.transAxes, ha="center", fontsize=6.5, color=C_GREY)
-    for i, v in enumerate(vals):
-        axb.text(i, v, f" {v:.2f}", ha="center", va="bottom", fontsize=7.5)
-    fig.suptitle("An ID attack is second order: it needs the masked value AND the mask itself in the window",
-                 fontsize=10, fontweight="bold")
-    save(fig, "F11_byte_comparison", "byte 2 vs byte 3 (附錄 B.66/B.67)")
+    # Measured on 8,000 raw traces by check_egger_windows.py (附錄 B.74), not
+    # read from a run: SNR is a property of the data, not of any training.
+    windows = ["byte 2\nANSSI [45400,46100)", "byte 3\nEgger [32906,33606)", "byte 3\nours [79352,80052)"]
+    masked_val = [6.5922, 8.5579, 16.2306]
+    mask_itself = [1.3272, 1.2522, 0.0392]
+    x = np.arange(3)
+    axb.bar(x - 0.19, masked_val, 0.36, color=C_GOOD, label="masked value  Z⊕r")
+    axb.bar(x + 0.19, mask_itself, 0.36, color=C_MID, label="the mask  r itself")
+    for xi, v in zip(x - 0.19, masked_val):
+        axb.text(xi, v, f"{v:.2f}", ha="center", va="bottom", fontsize=7.5)
+    for xi, v in zip(x + 0.19, mask_itself):
+        axb.text(xi, v, f"{v:.3f}", ha="center", va="bottom", fontsize=7.5)
+    axb.axhline(0.05, color=C_BAD, ls=":", lw=1)
+    axb.text(2.42, 0.062, "noise floor", ha="right", fontsize=7, color=C_BAD)
+    axb.set_yscale("log"); axb.set_ylim(0.02, 40)
+    axb.set_xticks(x); axb.set_xticklabels(windows, fontsize=7.5)
+    axb.set_ylabel("SNR peak (log)")
+    axb.set_title("Both shares present — except in the window we picked")
+    axb.legend(fontsize=7.5)
+    fig.suptitle("An ID attack is second order: the window must hold the masked value AND the mask.\n"
+                 "Our whole-trace argmax landed past the end of masked SubBytes (all 16 byte windows end by raw 50265),\n"
+                 "where only the residual masked value survives — Appendix B.74 retracts the \"byte 2 is lucky\" reading",
+                 fontsize=9.5, fontweight="bold")
+    save(fig, "F11_byte_comparison", "byte 2 vs byte 3 windows (附錄 B.66/B.67, corrected by B.74)")
 
 
 def f12_hardware_baseline(n_traces: int = 5000):
