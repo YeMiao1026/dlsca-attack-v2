@@ -24,7 +24,7 @@ import yaml
 
 from src.attack.predict import run as predict_run
 from src.data.ascad import load as ascad_load
-from src.data.preprocess import MinMaxScaler, Standardizer
+from src.data.preprocess import MinMaxScaler, Standardizer, horizontal_standardize
 from src.data.resync import resync, resync_iterative
 from src.data.split import load as load_split
 
@@ -39,6 +39,11 @@ def parse_args() -> argparse.Namespace:
                          "Requires --out so the clean baseline's probs.npy is never overwritten.")
     p.add_argument("--out", default=None,
                     help="where to write probs.npy (default: {run}/probs.npy; required when --traces is set)")
+    p.add_argument("--profiling-traces", default=None,
+                    help="the alternative Profiling_traces .npy the run was TRAINED on (adaptive A1). The "
+                         "scalers are refit on A drawn from it. Defaults to data.profiling_traces_path from "
+                         "config_snapshot.yaml, which 01_train_attacker.py records; pass it explicitly for "
+                         "runs made before that field existed.")
     args = p.parse_args()
     if args.traces and not args.out:
         p.error("--traces requires --out (never silently overwrite the run's own probs.npy)")
@@ -56,7 +61,15 @@ def main() -> None:
     data = ascad_load(cfg["data"]["path"])
     split = load_split(str(run_dir / "split_indices.npz"))
 
-    traces_a = data.profiling_traces[split.a]
+    profiling_path = args.profiling_traces or cfg["data"].get("profiling_traces_path")
+    if profiling_path:
+        print(f"=== refitting preprocessing on A from {profiling_path} (the traces this model was trained on) ===")
+        alt = np.load(profiling_path, mmap_mode="r")
+        if alt.shape != data.profiling_traces.shape:
+            raise ValueError(f"profiling traces shape {alt.shape} != expected {data.profiling_traces.shape}")
+        traces_a = np.asarray(alt[split.a])
+    else:
+        traces_a = data.profiling_traces[split.a]
     if args.traces:
         print(f"=== loading alternative E-set traces from {args.traces} (defended waveform) ===")
         traces_e = np.load(args.traces)
@@ -96,6 +109,9 @@ def main() -> None:
             minmax = MinMaxScaler()
             minmax.fit(x_a)
             x_e = minmax.transform(x_e)
+    elif preprocess_method == "horizontal_standardize":
+        print(f"=== horizontal (per-trace) standardization of E ({len(split.e)} traces) ===")
+        x_e = horizontal_standardize(traces_e)
     else:
         raise ValueError(f"unknown preprocess.method: {preprocess_method!r}")
 

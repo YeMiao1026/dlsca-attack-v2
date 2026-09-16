@@ -147,11 +147,17 @@ def validate(cfg: dict[str, Any]) -> None:
     if leakage_model == "ID_MASKED" and _get_path(cfg, "leakage.mask_index") is None:
         errors.append("leakage.mask_index is required when leakage.model is ID_MASKED")
 
-    for key in ("split.n_attacker", "split.n_val", "split.n_defender", "data.trace_len",
+    for key in ("split.n_attacker", "split.n_val", "data.trace_len",
                 "train.epochs", "attack.max_traces", "attack.n_runs"):
         value = _get_path(cfg, key)
         if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0):
             errors.append(f"{key} must be a positive integer, got {value!r}")
+    # D may be empty: reproducing a published attacker on its own split (e.g. Zaid
+    # et al.'s 45k/5k) leaves nothing for a defender, which is a legitimate choice
+    # for an attack-only run. Negative or non-integer values are still errors.
+    n_defender = _get_path(cfg, "split.n_defender")
+    if n_defender is not None and (not isinstance(n_defender, int) or isinstance(n_defender, bool) or n_defender < 0):
+        errors.append(f"split.n_defender must be a non-negative integer, got {n_defender!r}")
 
     if errors:
         raise ValueError("invalid config:\n  " + "\n  ".join(errors))

@@ -1,0 +1,27 @@
+# Zaid, Bossuet, Habrard, Venelli. TCHES 2020(1) — "Methodology for Efficient CNN
+# Architectures in Profiling Attacks", ASCAD with N[0]=0.
+# Recipe copied from the authors' own ASCAD/N0=0/cnn_architecture.py, not from
+# this project's cnn_light tuning:
+#   Adam, OneCycleLR(max_lr=5e-3, end_percentage=0.2, scale_percentage=0.1),
+#   batch 50, 50 epochs, StandardScaler -> MinMaxScaler, keep the final weights.
+# Published: 16,960 trainable parameters, mean N_tGE = 191 over 100 shuffled
+# attacks (their Table 4), with 45,000 training / 5,000 validation traces.
+model:
+  name: zaid_ascad0
+
+train:
+  optimizer: adam
+  lr: 5.0e-3          # scale_percentage 0.1 -> peak LR equals lr (see lr_schedule.py)
+  batch_size: 50
+  epochs: 50
+  lr_schedule: one_cycle
+  one_cycle:
+    end_percentage: 0.2
+    scale_percentage: 0.1
+  selection:
+    # The reference script has no checkpoint callback: it trains 50 epochs and
+    # evaluates the last model. GE previews are still logged, but choose nothing.
+    metric: final_epoch
+    eval_every: 5
+    n_runs_val: 20
+    patience: 1000

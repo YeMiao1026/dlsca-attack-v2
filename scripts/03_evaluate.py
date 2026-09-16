@@ -105,6 +105,14 @@ def main() -> None:
         if ge_curve is None:
             ge_curve = keyrank.ge(ranks)
         metrics["n_tge"] = keyrank.n_tge(ge_curve)
+        per_run = keyrank.n_tge_per_run(ranks)
+        converged = [v for v in per_run if v is not None]
+        metrics["n_tge_per_run"] = {
+            "mean": float(np.mean(converged)) if converged else None,
+            "median": float(np.median(converged)) if converged else None,
+            "n_converged": len(converged),
+            "n_runs": len(per_run),
+        }
     if "n_sr90" in requested:
         if sr1_curve is None:
             sr1_curve = keyrank.sr1(ranks)
@@ -125,6 +133,11 @@ def main() -> None:
     print("=== summary ===")
     if "n_tge" in metrics:
         print(f"  N_TGE:  {metrics['n_tge']}")
+    if "n_tge_per_run" in metrics:
+        pr = metrics["n_tge_per_run"]
+        mean_txt = f"{pr['mean']:.1f}" if pr["mean"] is not None else "n/a"
+        print(f"  mean per-run N_tGE (Zaid et al. definition): {mean_txt} "
+              f"({pr['n_converged']}/{pr['n_runs']} runs converged)")
     if "n_sr90" in metrics:
         print(f"  N_SR90: {metrics['n_sr90']}")
     if "pi" in metrics:

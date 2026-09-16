@@ -1,0 +1,34 @@
+exp_id: E12_adaptive_A1_zaid
+description: >
+  自適應攻擊者 A1 的強攻擊者版本：Zaid 模型與配方（E12_zaid_faithful）在
+  --profiling-traces 指向的防禦後 profiling 軌跡上重訓練。與 E01_adaptive_A1_retrain
+  的差異只有架構與配方，用來回答「防禦能否撐過一個比 cnn_light 強的自適應攻擊者」。
+
+seed: 42
+
+data: ascad_desync0
+model: zaid_ascad0
+
+split:
+  n_attacker: 45000
+  n_val: 5000
+  n_defender: 0
+  seed: 42
+
+preprocess:
+  minmax: true
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

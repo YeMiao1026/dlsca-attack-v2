@@ -123,3 +123,38 @@ def test_key_recovery_on_variable_keys_would_be_meaningless():
     single_key_labels = AES_SBOX[pt ^ keys[0]]
     agree = float((per_trace_labels == single_key_labels).mean())
     assert agree < 0.05  # only the ~1/256 of traces that happen to share key[0]
+
+
+class _FakeModel:
+    """Just enough of a Keras model for GEModelSelection.on_epoch_end."""
+
+    def __init__(self, probs):
+        self._probs = probs
+        self.saved = 0
+        self.stop_training = False
+
+    def predict(self, x, verbose=0):
+        return self._probs
+
+    def save(self, path):
+        self.saved += 1
+
+
+def test_log_only_mode_never_saves_and_never_stops_training(tmp_path):
+    """selection.metric: final_epoch reproduces pipelines that keep the last
+    weights. The callback must still log previews but must neither checkpoint
+    nor early-stop — otherwise a 'reproduction' silently adds model selection."""
+    meta = _meta(64, keys=np.uint8(42))
+    rng = np.random.default_rng(6)
+    probs = rng.random((64, 256)).astype(np.float32)
+    probs /= probs.sum(axis=1, keepdims=True)
+
+    cb = _make(meta, eval_every=1, n_runs_val=2, patience=1, max_traces=16,
+               checkpoint_path=str(tmp_path / "m.keras"), save_checkpoints=False, verbose=False)
+    fake = _FakeModel(probs)
+    cb.set_model(fake) if hasattr(cb, "set_model") else setattr(cb, "model", fake)
+    for epoch in range(4):
+        cb.on_epoch_end(epoch)
+    assert len(cb.history) == 4
+    assert fake.saved == 0
+    assert fake.stop_training is False

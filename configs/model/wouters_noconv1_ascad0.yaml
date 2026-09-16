@@ -1,0 +1,25 @@
+# Wouters, Arribas, Gierlichs, Preneel. TCHES 2020(3) — "Revisiting a Methodology
+# for Efficient CNN Architectures in Profiling Attacks".
+# noConv1_ascad_desync_0 from github.com/KULeuven-COSIC/TCHES20V3_CNN_SCA: Zaid's
+# model with the first convolution removed (6,436 parameters, their Table 1).
+# Their README's ascad_0_param: 50 epochs, batch 50, lr 5e-3, one_cycle_lr True.
+# The paper reports this model's result only as a figure ("similar results" to
+# Zaid's), so there is no single published number to match — the comparison is
+# against the Zaid reproduction run on the same splits.
+model:
+  name: wouters_noconv1_ascad0
+
+train:
+  optimizer: adam
+  lr: 5.0e-3
+  batch_size: 50
+  epochs: 50
+  lr_schedule: one_cycle
+  one_cycle:
+    end_percentage: 0.2
+    scale_percentage: 0.1
+  selection:
+    metric: final_epoch
+    eval_every: 5
+    n_runs_val: 20
+    patience: 1000

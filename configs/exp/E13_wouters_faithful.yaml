@@ -1,0 +1,38 @@
+exp_id: E13_wouters_faithful
+description: >
+  Wouters et al. noConv1＋45k/5k 切分。文獻強攻擊者重現（文獻查核.md §3.1 第 5 點：E01 的 N_TGE=475 比已發表的
+  高效 CNN 弱，防禦只對弱攻擊者驗證過不算數）。
+
+seed: 42
+
+data: ascad_desync0
+model: wouters_noconv1_ascad0
+
+split:
+  n_attacker: 45000
+  n_val: 5000
+  n_defender: 0
+  seed: 42
+
+preprocess:
+  # Wouters et al.'s own pipeline (src/simple.py -> preproces.horizontal_standardization):
+  # per-TRACE z-score, no MinMax. The first attempt used Zaid's per-point
+  # Standardizer+MinMax here and every seed failed (附錄 B.73) — the conv-free model
+  # depends on this preprocessing, which is the paper's own point.
+  method: horizontal_standardize
+  minmax: false
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

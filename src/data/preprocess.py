@@ -67,6 +67,22 @@ class MinMaxScaler:
         return self.fit(traces).transform(traces)
 
 
+def horizontal_standardize(traces: np.ndarray) -> np.ndarray:
+    """Per-TRACE z-score: every row is shifted to mean 0 and scaled to std 1 over
+    its own time samples. This is the preprocessing Wouters et al. (TCHES 2020(3))
+    pair with their conv-free noConv1 models (their src/preproces.py,
+    horizontal_standardization) — and their paper's argument is precisely that the
+    first conv layer can be dropped only "given an appropriate preprocessing".
+
+    Unlike Standardizer there is nothing to fit: each trace is normalised by its
+    own statistics, so the same call applies to A, V and E independently.
+    """
+    x = np.asarray(traces, dtype=np.float32)
+    mean = x.mean(axis=1, keepdims=True)
+    std = x.std(axis=1, keepdims=True)
+    return (x - mean) / np.where(std == 0, 1.0, std)
+
+
 def gaussian_augment(traces: np.ndarray, sigma_ratio: float, seed: int) -> np.ndarray:
     """Add N(0, (sigma_ratio * per-point std)^2) noise. Must be regenerated fresh
     every epoch by the caller (pitfall #11) — this function is stateless per call.

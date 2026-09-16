@@ -1,0 +1,33 @@
+exp_id: E12b_zaid_protocol
+description: >
+  Zaid 模型＋本專案 A/V/D 切分（與 E01 相同），供防禦評估使用、D 集與攻擊者互斥。文獻強攻擊者重現（文獻查核.md §3.1 第 5 點：E01 的 N_TGE=475 比已發表的
+  高效 CNN 弱，防禦只對弱攻擊者驗證過不算數）。
+
+seed: 42
+
+data: ascad_desync0
+model: zaid_ascad0
+
+split:
+  n_attacker: 30000
+  n_val: 5000
+  n_defender: 15000
+  seed: 42
+
+preprocess:
+  minmax: true   # StandardScaler -> MinMaxScaler([0,1]), as in the reference script
+
+leakage:
+  model: ID
+  n_classes: 256
+
+augment:
+  gaussian:
+    enabled: false
+    sigma_ratio: 0.5
+
+attack:
+  eval_set: E
+  max_traces: 9000
+  n_runs: 100
+  seed: 1234

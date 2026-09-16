@@ -57,6 +57,19 @@ def n_tge(ge_curve: np.ndarray, threshold: float = 1.0) -> int | None:
     return _first_sustained(ge_curve < threshold)
 
 
+def n_tge_per_run(ranks: np.ndarray) -> list[int | None]:
+    """Per-attack N_tGE, the literature's definition: for each run, the smallest N
+    after which THAT run's rank stays at 0 (rank 1 in 1-based papers).
+
+    Zaid et al. (TCHES 2020) report the mean of this over 100 shuffled attacks
+    ("N_tGE bar"), which is not the same number as n_tge() on the averaged GE
+    curve: the curve-level value waits for the average to settle below 1, so a
+    few slow runs pull it later. Both are kept so reproductions compare like
+    with like instead of quoting one definition against the other.
+    """
+    return [_first_sustained(run < 1) for run in ranks]
+
+
 def n_sr90(sr1_curve: np.ndarray, threshold: float = 0.9) -> int | None:
     """Smallest N such that SR1 stays >= `threshold` for all N' >= N."""
     return _first_sustained(sr1_curve >= threshold)

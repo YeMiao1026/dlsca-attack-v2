@@ -80,6 +80,14 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
     mask_index = cfg["leakage"].get("mask_index")
     mask = meta_v["masks"][:, mask_index].astype(np.uint8) if leakage_model == "ID_MASKED" else None
 
+    # selection.metric: final_epoch reproduces reference pipelines that simply
+    # train for a fixed schedule and keep the last weights (Zaid et al.'s
+    # cnn_architecture.py has no checkpoint callback at all). GE previews are
+    # still logged for train_history.csv, but they choose nothing and cannot
+    # stop training — otherwise a "reproduction" would quietly add a model
+    # selection step the original never had.
+    keep_final = selection_cfg.get("metric", "n_tge") == "final_epoch"
+
     ge_callback = GEModelSelection(
         x_val=x_v,
         meta_val=meta_v,
@@ -89,6 +97,7 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
         patience=selection_cfg.get("patience", 6),
         checkpoint_path=checkpoint_path,
         max_traces=selection_cfg.get("max_traces", 1000),
+        save_checkpoints=not keep_final,
         seed=cfg.get("seed", 0),
         leakage_model=leakage_model,
         mask=mask,
@@ -131,7 +140,10 @@ def fit(x_a: np.ndarray, y_a: np.ndarray, x_v: np.ndarray, y_v: np.ndarray, meta
             verbose=2,
         )
 
-    if os.path.exists(checkpoint_path):
+    if keep_final:
+        model.save(checkpoint_path)
+        best_model = model
+    elif os.path.exists(checkpoint_path):
         best_model = keras.models.load_model(checkpoint_path)
     else:
         # eval_every never landed on a completed epoch (e.g. epochs < eval_every):

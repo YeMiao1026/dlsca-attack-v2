@@ -70,3 +70,23 @@ def test_n_tge_partial_convergence_returns_plain_int():
     n_sr90 = keyrank.n_sr90(sr1_curve, threshold=0.9)
     assert n_sr90 == 4
     assert type(n_sr90) is int
+
+
+def test_per_run_n_tge_differs_from_curve_level_n_tge_by_definition():
+    """Two runs: one locks rank 0 from trace 2, one only from trace 5. The
+    literature's mean per-run N_tGE is (2+5)/2 = 3.5, while the averaged GE curve
+    only drops below 1 once BOTH runs are at 0 — or earlier, if the mean of the
+    two ranks is already < 1. This pins the two definitions apart."""
+    ranks = np.array([
+        [3, 0, 0, 0, 0, 0],
+        [9, 4, 2, 1, 0, 0],
+    ], dtype=np.int16)
+    per_run = keyrank.n_tge_per_run(ranks)
+    assert per_run == [2, 5]
+    # mean GE per N: 6, 2, 1, 0.5, 0, 0 -> sustained below 1 from N=4
+    assert keyrank.n_tge(keyrank.ge(ranks)) == 4
+
+
+def test_per_run_n_tge_reports_none_for_a_run_that_never_settles():
+    ranks = np.array([[0, 0, 0], [0, 1, 0], [2, 1, 1]], dtype=np.int16)
+    assert keyrank.n_tge_per_run(ranks) == [1, 3, None]

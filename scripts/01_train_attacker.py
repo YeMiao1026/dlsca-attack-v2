@@ -28,7 +28,7 @@ import src.models  # noqa: F401  registers cnn_light/cnn_best/resnet with src.mo
 from src.config import load_config, snapshot
 from src.data.ascad import load as ascad_load
 from src.data.labels import build as build_labels
-from src.data.preprocess import MinMaxScaler, Standardizer
+from src.data.preprocess import MinMaxScaler, Standardizer, horizontal_standardize
 from src.data.resync import resync, resync_iterative
 from src.data.split import four_way
 from src.data.split import save as save_split
@@ -95,6 +95,13 @@ def main() -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"=== run dir: {run_dir} ===")
 
+    if args.profiling_traces:
+        # Recorded so 02_run_attack.py refits the Standardizer/MinMaxScaler on the
+        # SAME traces the model was trained on. Without this, an adaptive (A1)
+        # attacker trained on defended profiling traces was evaluated with scalers
+        # fit on the clean .h5 — a train/test preprocessing mismatch (附錄 B.72).
+        cfg["data"]["profiling_traces_path"] = str(Path(args.profiling_traces).resolve())
+
     snapshot(cfg, run_dir)
     write_env_json(run_dir / "env.json")
 
@@ -152,6 +159,12 @@ def main() -> None:
             minmax = MinMaxScaler()
             x_a = minmax.fit_transform(x_a)
             x_v = minmax.transform(x_v)
+    elif preprocess_method == "horizontal_standardize":
+        if cfg["preprocess"].get("minmax"):
+            raise ValueError("preprocess.minmax is a per-point transform fit on A; it is not defined for horizontal_standardize")
+        print("=== horizontal (per-trace) standardization of A/V ===")
+        x_a = horizontal_standardize(traces_a)
+        x_v = horizontal_standardize(traces_v)
     else:
         raise ValueError(f"unknown preprocess.method: {preprocess_method!r}")
 

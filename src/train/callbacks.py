@@ -31,8 +31,12 @@ class GEModelSelection(keras.callbacks.Callback):
                  n_runs_val: int = 20, patience: int = 6, checkpoint_path: str = "best.keras",
                  max_traces: int = 1000, seed: int = 0, verbose: bool = True,
                  leakage_model: LeakageModel = "ID", mask: np.ndarray | None = None,
-                 y_val: np.ndarray | None = None):
+                 y_val: np.ndarray | None = None, save_checkpoints: bool = True):
         super().__init__()
+        # False = log-only: previews are computed and recorded, but nothing is
+        # saved and training is never stopped (trainer's selection.metric:
+        # final_epoch, for reproducing pipelines that keep the last weights).
+        self.save_checkpoints = save_checkpoints
         self.x_val = x_val
         self.plaintexts = meta_val["plaintext"]
         self.target_byte = target_byte
@@ -114,17 +118,18 @@ class GEModelSelection(keras.callbacks.Callback):
 
         improved = self._is_better(n_tge, final_ge)
         if self.verbose:
-            tag = " (new best, saving)" if improved else ""
+            tag = (" (new best, saving)" if self.save_checkpoints else " (new best, log-only)") if improved else ""
             print(f"\n[GEModelSelection] epoch {epoch_number}: N_TGE={n_tge} {label}={final_ge:.2f}{tag}")
 
         if improved:
             self.best_n_tge = n_tge
             self.best_final_ge = final_ge
             self.evals_without_improvement = 0
-            self.model.save(self.checkpoint_path)
+            if self.save_checkpoints:
+                self.model.save(self.checkpoint_path)
         else:
             self.evals_without_improvement += 1
-            if self.evals_without_improvement >= self.patience:
+            if self.save_checkpoints and self.evals_without_improvement >= self.patience:
                 self.model.stop_training = True
                 if self.verbose:
                     print(f"[GEModelSelection] no improvement for {self.patience} evaluations, stopping")
